@@ -14,6 +14,7 @@ mod fields;
 use bitflags::bitflags;
 use constant_pool::{ConstantPool, ConstantPoolError};
 use fields::Field;
+use std::io::{BufReader, Cursor, Read};
 use thiserror::Error;
 
 /// Classfile structure defined by JVMS (4.1)
@@ -35,10 +36,10 @@ pub(crate) struct Version {
     minor: u16,
 }
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug)]
 pub(crate) enum ClassfileError {
-    #[error("Overflow trying to read: {0} whereas length is: {1}")]
-    Overflow(usize, usize),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
     #[error("Invalid classfile: magic number doesn't match.")]
     Invalid,
     #[error("Invalid or incompatible version found: {0}")]
@@ -79,15 +80,15 @@ impl<'c> TryFrom<&[u8]> for Classfile<'c> {
     type Error = ClassfileError;
 
     fn try_from(buff: &[u8]) -> Result<Self, Self::Error> {
-        let mut cursor: usize = 0;
+        let mut reader = BufReader::new(buff);
 
-        let magic = read::<u32>(&buff, &mut cursor)?;
+        let magic = read::<u32>(&buff, &mut reader)?;
         if magic != MAGIC {
             return Err(ClassfileError::Invalid);
         }
 
-        let minor = read::<u16>(&buff, &mut cursor)?;
-        let major = read::<u16>(&buff, &mut cursor)?;
+        let minor = read::<u16>(&buff, &mut reader)?;
+        let major = read::<u16>(&buff, &mut reader)?;
         if !Version::is_valid(major) {
             return Err(ClassfileError::Version(major));
         }
@@ -107,15 +108,14 @@ impl Version {
     }
 }
 
-fn read<T>(buff: &[u8], cursor: &mut usize) -> Result<T, ClassfileError>
+pub(self) fn read<T>(buff: &[u8], cursor: &mut BufReader<impl Read>) -> Result<T, ClassfileError>
 where
     T: Sized + From<u8> + Copy,
     T: core::ops::Shl<u8, Output = T> + core::ops::BitOr<Output = T>,
 {
     let size = size_of::<T>();
-    let buff = buff
-        .get(*cursor..*cursor + size)
-        .ok_or(ClassfileError::Overflow(*cursor, buff.len()))?;
+    let mut buff = vec![0u8; size];
+    cursor.read_exact(&mut buff)?;
 
     let mut value = T::from(buff[0]);
 
@@ -123,6 +123,5 @@ where
         .iter()
         .for_each(|&byte| value = (value << 8.into()) | T::from(byte));
 
-    *cursor += size;
     Ok(value)
 }
