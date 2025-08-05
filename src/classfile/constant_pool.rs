@@ -5,7 +5,7 @@
 //!
 //! [constant pool]: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-2.html#jvms-2.5.5
 
-use std::fmt::Display;
+use core::fmt::{Display, Formatter};
 use thiserror::Error;
 
 /// Constant pool of a given Java class.
@@ -28,6 +28,8 @@ pub(crate) enum ConstantPoolEntry<'c> {
     Double(f64),
 
     Class(u16),
+    StringRef(u16),
+
     FieldRef(u16, u16),
     MethodRef(u16, u16),
     InterfaceMethodRef(u16, u16),
@@ -40,6 +42,8 @@ pub(crate) enum ConstantPoolError {
     InvalidIndex(u16),
     #[error("Accessed reserved slot: {0}")]
     UnusableSlot(u16),
+    #[error(transparent)]
+    Formatter(#[from] std::fmt::Error),
 }
 
 impl<'c> ConstantPool<'c> {
@@ -70,6 +74,79 @@ impl<'c> ConstantPool<'c> {
             None => Err(ConstantPoolError::InvalidIndex(index)),
         }
     }
+
+    fn format(&self, index: u16, f: &mut Formatter) -> Result<(), ConstantPoolError> {
+        let entry = self.get(index)?;
+
+        match entry {
+            ConstantPoolEntry::Utf8(string) => f.write_str(string),
+            ConstantPoolEntry::Integer(int) => write!(f, "{int}"),
+            ConstantPoolEntry::Float(float) => write!(f, "{float}"),
+            ConstantPoolEntry::Long(long) => write!(f, "{long}"),
+            ConstantPoolEntry::Double(double) => write!(f, "{double}"),
+
+            ConstantPoolEntry::Class(idx) | ConstantPoolEntry::StringRef(idx) => {
+                return self.format(*idx, f);
+            }
+
+            ConstantPoolEntry::FieldRef(idx, info)
+            | ConstantPoolEntry::MethodRef(idx, info)
+            | ConstantPoolEntry::InterfaceMethodRef(idx, info)
+            | ConstantPoolEntry::NameAndType(idx, info) => {
+                self.format(*idx, f)?;
+                write!(f, ".")?;
+                Ok(self.format(*info, f)?)
+            }
+        }
+        .map_err(Into::into)
+    }
+
+    fn format_entry(&self, index: u16, f: &mut Formatter) -> Result<(), ConstantPoolError> {
+        fn format_pair(
+            this: &ConstantPool,
+            name: &str,
+            first: u16,
+            second: u16,
+            f: &mut Formatter,
+        ) -> Result<(), ConstantPoolError> {
+            write!(f, "{name}: {} => (", first)?;
+            this.format_entry(second, f)?;
+            write!(f, ")").map_err(Into::into)
+        }
+
+        match self.get(index)? {
+            ConstantPoolEntry::Utf8(s) => write!(f, "Utf8 \"{s}\""),
+            ConstantPoolEntry::Integer(n) => write!(f, "Integer {n}"),
+            ConstantPoolEntry::Float(n) => write!(f, "Float {n}"),
+            ConstantPoolEntry::Long(int) => write!(f, "Long {int}"),
+            ConstantPoolEntry::Double(float) => write!(f, "Double {float}"),
+
+            ConstantPoolEntry::Class(idx) => {
+                write!(f, "Class: {} => (", idx)?;
+                self.format_entry(*idx, f)?;
+                write!(f, ")")
+            }
+            ConstantPoolEntry::StringRef(idx) => {
+                write!(f, "StringRef: {} => (", idx)?;
+                self.format_entry(*idx, f)?;
+                write!(f, ")")
+            }
+
+            ConstantPoolEntry::FieldRef(idx, info) => {
+                return format_pair(self, "FieldRef", *idx, *info, f);
+            }
+            ConstantPoolEntry::MethodRef(idx, info) => {
+                return format_pair(self, "MethodRef", *idx, *info, f);
+            }
+            ConstantPoolEntry::NameAndType(idx, info) => {
+                return format_pair(self, "NameAndType", *idx, *info, f);
+            }
+            ConstantPoolEntry::InterfaceMethodRef(idx, info) => {
+                return format_pair(self, "InterfaceMethodRef", *idx, *info, f);
+            }
+        }
+        .map_err(Into::into)
+    }
 }
 
 impl<'c> ConstantPoolEntry<'c> {
@@ -79,26 +156,5 @@ impl<'c> ConstantPoolEntry<'c> {
     /// original 32-bit design and its operand stack.
     fn uses_two_slots(&self) -> bool {
         matches!(self, Self::Long(_) | Self::Double(_))
-    }
-}
-
-impl<'c> Display for ConstantPoolEntry<'c> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConstantPoolEntry::Utf8(s) => write!(f, "Utf8 \"{s}\""),
-            ConstantPoolEntry::Integer(n) => write!(f, "Integer {n}"),
-            ConstantPoolEntry::Float(n) => write!(f, "Float {n}"),
-            ConstantPoolEntry::Long(int) => write!(f, "Long {int}"),
-            ConstantPoolEntry::Double(float) => write!(f, "Double {float}"),
-
-            ConstantPoolEntry::Class(idx) => write!(f, "Class index {idx}"),
-
-            ConstantPoolEntry::FieldRef(idx, info) => write!(f, "FieldRef: {idx}, {info}"),
-            ConstantPoolEntry::MethodRef(idx, info) => write!(f, "MethodRef: {idx}, {info}"),
-            ConstantPoolEntry::NameAndType(idx, info) => write!(f, "NameAndType: {idx}, {info}"),
-            ConstantPoolEntry::InterfaceMethodRef(idx, info) => {
-                write!(f, "InterfaceMethodRef: {idx}, {info}")
-            }
-        }
     }
 }
