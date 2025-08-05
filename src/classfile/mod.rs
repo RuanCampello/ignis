@@ -116,6 +116,17 @@ impl<'c> TryFrom<&[u8]> for Classfile<'c> {
         }
         let version = Version::new(major, minor);
 
+        let constant_pool = ConstantPool::try_from(&mut Cursor::new(buff))?;
+        let access_flag = AccessFlags::from_bits_truncate(read::<u16>(&buff, &mut reader)?);
+
+        let this_class: u16 = read(&buff, &mut reader)?;
+        let super_class: u16 = read(&buff, &mut reader)?;
+
+        let mut interfaces = Vec::with_capacity(read::<u16>(&buff, &mut reader)? as usize);
+        for _ in (0..interfaces.len()) {
+            interfaces.push(read::<u16>(&buff, &mut reader)?);
+        }
+
         todo!()
     }
 }
