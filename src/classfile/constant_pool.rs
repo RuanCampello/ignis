@@ -172,3 +172,36 @@ impl<'c> Display for ConstantPool<'c> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn constant_pool() -> Result<(), ConstantPoolError> {
+        let mut pool = ConstantPool::new();
+
+        pool.push(ConstantPoolEntry::Utf8("hello world")); // 1
+        pool.push(ConstantPoolEntry::Integer(1i32)); // 2
+        pool.push(ConstantPoolEntry::Long(2i64)); // 3 - 4
+        pool.push(ConstantPoolEntry::Double(f64::EPSILON)); // 5 - 6
+        pool.push(ConstantPoolEntry::Class(1)); // 7 
+        pool.push(ConstantPoolEntry::MethodRef(1, 7)); // 8
+        pool.push(ConstantPoolEntry::FieldRef(1, 7)); // 9
+
+        assert_eq!(pool.get(0).unwrap_err(), ConstantPoolError::InvalidIndex(0));
+        assert_eq!(
+            pool.get(10).unwrap_err(),
+            ConstantPoolError::InvalidIndex(10)
+        );
+
+        assert_eq!(pool.get(4).unwrap_err(), ConstantPoolError::UnusableSlot(4));
+        assert_eq!(pool.get(6).unwrap_err(), ConstantPoolError::UnusableSlot(6));
+
+        assert_eq!(pool.get(1)?, &ConstantPoolEntry::Utf8("hello world"));
+        assert_eq!(pool.get(8)?, &ConstantPoolEntry::MethodRef(1, 7));
+        assert_eq!(pool.get(9)?, &ConstantPoolEntry::FieldRef(1, 7));
+
+        Ok(())
+    }
+}
