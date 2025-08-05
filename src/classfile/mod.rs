@@ -12,9 +12,9 @@ mod constant_pool;
 mod fields;
 
 use bitflags::bitflags;
-
-use constant_pool::ConstantPool;
+use constant_pool::{ConstantPool, ConstantPoolError};
 use fields::Field;
+use thiserror::Error;
 
 /// Classfile structure defined by JVMS (4.1)
 #[derive(Debug, PartialEq, Clone)]
@@ -33,6 +33,18 @@ pub(crate) struct Classfile<'p> {
 pub(crate) struct Version {
     major: u16,
     minor: u16,
+}
+
+#[derive(Error, Debug, PartialEq)]
+pub(crate) enum ClassfileError {
+    #[error("Overflow trying to read: {0} whereas length is: {1}")]
+    Overflow(usize, usize),
+    #[error("Invalid classfile: magic number doesn't match.")]
+    Invalid,
+    #[error("Invalid or incompatible version found: {0}")]
+    Version(u16),
+    #[error(transparent)]
+    ConstantPool(#[from] ConstantPoolError),
 }
 
 /// Magic header number for a `.class` file.
@@ -63,8 +75,54 @@ bitflags! {
     }
 }
 
+impl<'c> TryFrom<&[u8]> for Classfile<'c> {
+    type Error = ClassfileError;
+
+    fn try_from(buff: &[u8]) -> Result<Self, Self::Error> {
+        let mut cursor: usize = 0;
+
+        let magic = read::<u32>(&buff, &mut cursor)?;
+        if magic != MAGIC {
+            return Err(ClassfileError::Invalid);
+        }
+
+        let minor = read::<u16>(&buff, &mut cursor)?;
+        let major = read::<u16>(&buff, &mut cursor)?;
+        if !Version::is_valid(major) {
+            return Err(ClassfileError::Version(major));
+        }
+        let version = Version::new(major, minor);
+
+        todo!()
+    }
+}
+
 impl Version {
-    pub(crate) fn is_valid(major: u16) -> bool {
+    const fn new(major: u16, minor: u16) -> Self {
+        Self { major, minor }
+    }
+
+    fn is_valid(major: u16) -> bool {
         (45..=68).contains(&major)
     }
+}
+
+fn read<T>(buff: &[u8], cursor: &mut usize) -> Result<T, ClassfileError>
+where
+    T: Sized + From<u8> + Copy,
+    T: core::ops::Shl<u8, Output = T> + core::ops::BitOr<Output = T>,
+{
+    let size = size_of::<T>();
+    let buff = buff
+        .get(*cursor..*cursor + size)
+        .ok_or(ClassfileError::Overflow(*cursor, buff.len()))?;
+
+    let mut value = T::from(buff[0]);
+
+    &buff[1..]
+        .iter()
+        .for_each(|&byte| value = (value << 8.into()) | T::from(byte));
+
+    *cursor += size;
+    Ok(value)
 }
