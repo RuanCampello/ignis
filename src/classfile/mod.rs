@@ -12,9 +12,9 @@ mod constant_pool;
 mod fields;
 
 use bitflags::bitflags;
-use constant_pool::{ConstantPool, ConstantPoolError};
+use constant_pool::{ConstantPool, ConstantPoolEntry, ConstantPoolError};
 use fields::Field;
-use std::io::{BufReader, Cursor, Read};
+use std::io::{BufReader, Cursor, Read, Seek, SeekFrom};
 use thiserror::Error;
 
 /// Classfile structure defined by JVMS (4.1)
@@ -110,7 +110,7 @@ impl Version {
     }
 }
 
-pub(self) fn read<T>(buff: &[u8], reader: &mut BufReader<impl Read>) -> Result<T, ClassfileError>
+pub(self) fn read<T>(buff: &[u8], reader: &mut impl Read) -> Result<T, ClassfileError>
 where
     T: Sized + From<u8> + Copy,
     T: core::ops::Shl<u8, Output = T> + core::ops::BitOr<Output = T>,

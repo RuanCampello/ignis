@@ -6,7 +6,7 @@
 //! [constant pool]: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-2.html#jvms-2.5.5
 
 use core::fmt::{Display, Formatter};
-use std::io::{BufReader, Read};
+use std::io::{Cursor, Read, Seek, SeekFrom};
 use thiserror::Error;
 
 /// Constant pool of a given Java class.
@@ -167,10 +167,10 @@ impl<'c> ConstantPoolEntry<'c> {
     }
 }
 
-impl<'c, R: Read> TryFrom<&mut BufReader<R>> for ConstantPool<'c> {
+impl<'c> TryFrom<&mut Cursor<&'c [u8]>> for ConstantPool<'c> {
     type Error = crate::classfile::ClassfileError;
 
-    fn try_from(reader: &mut BufReader<R>) -> Result<Self, Self::Error> {
+    fn try_from(reader: &mut Cursor<&'c [u8]>) -> Result<Self, Self::Error> {
         use crate::classfile::read;
 
         let count = {
@@ -182,14 +182,25 @@ impl<'c, R: Read> TryFrom<&mut BufReader<R>> for ConstantPool<'c> {
         let mut pool = ConstantPool::with_capacity(count);
 
         for idx in (0..count) {
-            let tag = read::<u8>(&[0u8; 1], reader)?;
+            let tag = read::<u8>(&[0u8], reader)?;
 
             let entry = match tag {
+                1 => {
+                    // FIXME: maybe we should support cesu8 strings, but it would be a pain in the
+                    // ass to do that without allocating a new string instance or change the api to
+                    // have a Cow
+                    let length = read::<u16>(&[0u8; 2], reader)? as usize;
+                    let pos = reader.position() as usize;
+                    reader.seek(SeekFrom::Current(length as i64))?;
+
+                    let data = reader.get_ref();
+                    let bytes = &data[pos..pos + length];
+
+                    ConstantPoolEntry::Utf8(std::str::from_utf8(bytes)?)
+                }
                 3 => ConstantPoolEntry::Integer(read::<i32>(&[0u8; 4], reader)?),
                 _ => unreachable!(),
             };
-
-            pool.push(entry)
         }
 
         Ok(pool)
