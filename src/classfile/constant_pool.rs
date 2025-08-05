@@ -5,6 +5,8 @@
 //!
 //! [constant pool]: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-2.html#jvms-2.5.5
 
+#![allow(unused)]
+
 use core::fmt::{Display, Formatter};
 use thiserror::Error;
 
@@ -20,20 +22,21 @@ pub(crate) struct ConstantPool<'c> {
 ///
 /// [specification]: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.4
 #[derive(Debug, PartialEq, Clone, Copy)]
+#[repr(u8)]
 pub(crate) enum ConstantPoolEntry<'c> {
-    Utf8(&'c str),
-    Integer(i32),
-    Float(f32),
-    Long(i64),
-    Double(f64),
+    Utf8(&'c str) = 1,
+    Integer(i32) = 3,
+    Float(f32) = 4,
+    Long(i64) = 5,
+    Double(f64) = 6,
 
-    Class(u16),
-    StringRef(u16),
+    Class(u16) = 7,
+    StringRef(u16) = 8,
 
-    FieldRef(u16, u16),
-    MethodRef(u16, u16),
-    InterfaceMethodRef(u16, u16),
-    NameAndType(u16, u16),
+    FieldRef(u16, u16) = 9,
+    MethodRef(u16, u16) = 10,
+    InterfaceMethodRef(u16, u16) = 11,
+    NameAndType(u16, u16) = 12,
 }
 
 #[derive(Error, Debug, PartialEq)]
