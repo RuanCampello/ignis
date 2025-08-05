@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 mod classfile;
 
 fn main() {

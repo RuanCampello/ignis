@@ -7,6 +7,7 @@
 //!
 //! The output of this module is a structured `ClassFile` representation, which is used by the class loader and interpreter.
 
+mod attributes;
 mod constant_pool;
 mod fields;
 

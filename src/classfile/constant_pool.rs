@@ -5,8 +5,6 @@
 //!
 //! [constant pool]: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-2.html#jvms-2.5.5
 
-#![allow(unused)]
-
 use core::fmt::{Display, Formatter};
 use thiserror::Error;
 
