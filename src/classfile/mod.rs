@@ -41,7 +41,9 @@ pub(crate) enum ClassfileError {
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error("Invalid classfile: magic number doesn't match.")]
-    Invalid,
+    InvalidClassfile,
+    #[error("Invalid UTF-8 string: {0}")]
+    InvalidUtf8(#[from] core::str::Utf8Error),
     #[error("Invalid or incompatible version found: {0}")]
     Version(u16),
     #[error(transparent)]
@@ -84,7 +86,7 @@ impl<'c> TryFrom<&[u8]> for Classfile<'c> {
 
         let magic = read::<u32>(&buff, &mut reader)?;
         if magic != MAGIC {
-            return Err(ClassfileError::Invalid);
+            return Err(ClassfileError::InvalidClassfile);
         }
 
         let minor = read::<u16>(&buff, &mut reader)?;
@@ -108,14 +110,14 @@ impl Version {
     }
 }
 
-pub(self) fn read<T>(buff: &[u8], cursor: &mut BufReader<impl Read>) -> Result<T, ClassfileError>
+pub(self) fn read<T>(buff: &[u8], reader: &mut BufReader<impl Read>) -> Result<T, ClassfileError>
 where
     T: Sized + From<u8> + Copy,
     T: core::ops::Shl<u8, Output = T> + core::ops::BitOr<Output = T>,
 {
     let size = size_of::<T>();
     let mut buff = vec![0u8; size];
-    cursor.read_exact(&mut buff)?;
+    reader.read_exact(&mut buff)?;
 
     let mut value = T::from(buff[0]);
 

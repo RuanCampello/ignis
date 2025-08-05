@@ -6,6 +6,7 @@
 //! [constant pool]: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-2.html#jvms-2.5.5
 
 use core::fmt::{Display, Formatter};
+use std::io::{BufReader, Read};
 use thiserror::Error;
 
 /// Constant pool of a given Java class.
@@ -48,6 +49,12 @@ pub(crate) enum ConstantPoolError {
 }
 
 impl<'c> ConstantPool<'c> {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            entries: Vec::with_capacity(capacity),
+        }
+    }
+
     pub fn new() -> Self {
         Self::default()
     }
@@ -157,6 +164,35 @@ impl<'c> ConstantPoolEntry<'c> {
     /// original 32-bit design and its operand stack.
     fn uses_two_slots(&self) -> bool {
         matches!(self, Self::Long(_) | Self::Double(_))
+    }
+}
+
+impl<'c, R: Read> TryFrom<&mut BufReader<R>> for ConstantPool<'c> {
+    type Error = crate::classfile::ClassfileError;
+
+    fn try_from(reader: &mut BufReader<R>) -> Result<Self, Self::Error> {
+        use crate::classfile::read;
+
+        let count = {
+            let mut buff = [0u8, 2];
+            reader.read_exact(&mut buff)?;
+            u16::from_be_bytes(buff) as usize
+        };
+
+        let mut pool = ConstantPool::with_capacity(count);
+
+        for idx in (0..count) {
+            let tag = read::<u8>(&[0u8; 1], reader)?;
+
+            let entry = match tag {
+                3 => ConstantPoolEntry::Integer(read::<i32>(&[0u8; 4], reader)?),
+                _ => unreachable!(),
+            };
+
+            pool.push(entry)
+        }
+
+        Ok(pool)
     }
 }
 
