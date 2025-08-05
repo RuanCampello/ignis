@@ -171,6 +171,7 @@ impl<'c> TryFrom<&mut Cursor<&'c [u8]>> for ConstantPool<'c> {
     type Error = crate::classfile::ClassfileError;
 
     fn try_from(reader: &mut Cursor<&'c [u8]>) -> Result<Self, Self::Error> {
+        use super::ConstantPoolEntry as Entry;
         use crate::classfile::read;
 
         let count = {
@@ -181,7 +182,7 @@ impl<'c> TryFrom<&mut Cursor<&'c [u8]>> for ConstantPool<'c> {
 
         let mut pool = ConstantPool::with_capacity(count);
 
-        for idx in (0..count) {
+        for mut idx in (0..count) {
             let tag = read::<u8>(&[0u8], reader)?;
 
             let entry = match tag {
@@ -196,10 +197,30 @@ impl<'c> TryFrom<&mut Cursor<&'c [u8]>> for ConstantPool<'c> {
                     let data = reader.get_ref();
                     let bytes = &data[pos..pos + length];
 
-                    ConstantPoolEntry::Utf8(std::str::from_utf8(bytes)?)
+                    Entry::Utf8(std::str::from_utf8(bytes)?)
                 }
-                3 => ConstantPoolEntry::Integer(read::<i32>(&[0u8; 4], reader)?),
-                4 => ConstantPoolEntry::Float(read::<f32>(&[0u8; 4], reader)?),
+                3 => Entry::Integer(read::<i32>(&[0u8; 4], reader)?),
+                4 => Entry::Float(read::<f32>(&[0u8; 4], reader)?),
+                5 => {
+                    idx += 1;
+                    Entry::Long(read::<i64>(&[0u8; 8], reader)?)
+                }
+                6 => {
+                    idx += 1;
+                    Entry::Double(read::<f64>(&[0u8; 8], reader)?)
+                }
+                7 => Entry::Class(read::<u16>(&[0u8; 2], reader)?),
+                8 => Entry::StringRef(read::<u16>(&[0u8; 2], reader)?),
+                9 | 10 | 11 => {
+                    let class_index: u16 = read(&[0u8; 2], reader)?;
+                    let name_and_type_index: u16 = read(&[0u8; 2], reader)?;
+
+                    match tag {
+                        9 => Entry::FieldRef(class_index, name_and_type_index),
+                        10 => Entry::MethodRef(class_index, name_and_type_index),
+                        _ => Entry::InterfaceMethodRef(class_index, name_and_type_index),
+                    }
+                }
                 _ => unreachable!(),
             };
         }
