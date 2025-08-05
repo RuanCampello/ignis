@@ -199,6 +199,7 @@ impl<'c> TryFrom<&mut Cursor<&'c [u8]>> for ConstantPool<'c> {
                     ConstantPoolEntry::Utf8(std::str::from_utf8(bytes)?)
                 }
                 3 => ConstantPoolEntry::Integer(read::<i32>(&[0u8; 4], reader)?),
+                4 => ConstantPoolEntry::Float(read::<f32>(&[0u8; 4], reader)?),
                 _ => unreachable!(),
             };
         }

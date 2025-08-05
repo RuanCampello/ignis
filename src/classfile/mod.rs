@@ -78,6 +78,26 @@ bitflags! {
     }
 }
 
+trait FromBeBytes {
+    type Bytes: Sized;
+    fn from_be_bytes(bytes: Self::Bytes) -> Self;
+}
+
+macro_rules! impl_from_be_bytes {
+    ($($t:ty),* $(,)?) => {
+        $(
+            impl FromBeBytes for $t {
+                type Bytes = [u8; core::mem::size_of::<$t>()];
+                fn from_be_bytes(bytes: Self::Bytes) -> Self {
+                    <$t>::from_be_bytes(bytes)
+                }
+            }
+        )*
+    };
+}
+
+impl_from_be_bytes!(u8, u16, u32, u64, i8, i16, i32, i64, f32, f64);
+
 impl<'c> TryFrom<&[u8]> for Classfile<'c> {
     type Error = ClassfileError;
 
@@ -112,18 +132,11 @@ impl Version {
 
 pub(self) fn read<T>(buff: &[u8], reader: &mut impl Read) -> Result<T, ClassfileError>
 where
-    T: Sized + From<u8> + Copy,
-    T: core::ops::Shl<u8, Output = T> + core::ops::BitOr<Output = T>,
+    T: FromBeBytes,
+    T::Bytes: AsMut<[u8]> + Default,
 {
-    let size = size_of::<T>();
-    let mut buff = vec![0u8; size];
-    reader.read_exact(&mut buff)?;
+    let mut bytes = T::Bytes::default();
+    reader.read_exact(bytes.as_mut())?;
 
-    let mut value = T::from(buff[0]);
-
-    &buff[1..]
-        .iter()
-        .for_each(|&byte| value = (value << 8.into()) | T::from(byte));
-
-    Ok(value)
+    Ok(T::from_be_bytes(bytes))
 }
