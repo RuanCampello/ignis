@@ -231,20 +231,31 @@ impl<'c> TryFrom<&mut Cursor<&'c [u8]>> for ConstantPool<'c> {
                 }
                 7 => Entry::Class(read::<u16>(&[0u8; 2], reader)?),
                 8 => Entry::StringRef(read::<u16>(&[0u8; 2], reader)?),
-                9 | 10 | 11 => {
+                9 | 10 | 11 | 17 | 18 => {
                     let class_index: u16 = read(&[0u8; 2], reader)?;
                     let name_and_type_index: u16 = read(&[0u8; 2], reader)?;
 
                     match tag {
                         9 => Entry::FieldRef(class_index, name_and_type_index),
                         10 => Entry::MethodRef(class_index, name_and_type_index),
-                        _ => Entry::InterfaceMethodRef(class_index, name_and_type_index),
+                        11 => Entry::InterfaceMethodRef(class_index, name_and_type_index),
+                        // those aren't actually the name of the fields of these constants, but how
+                        // cares
+                        17 => Entry::Dynamic(class_index, name_and_type_index),
+                        _ => Entry::InvokeDynamic(class_index, name_and_type_index),
                     }
                 }
                 12 => Entry::NameAndType(
                     read::<u16>(&[0u8; 2], reader)?,
                     read::<u16>(&[0u8; 2], reader)?,
                 ),
+                15 => Entry::MethodHandle(
+                    read::<u8>(&[0u8], reader)?,
+                    read::<u16>(&[0u8; 2], reader)?,
+                ),
+                16 => Entry::MethodType(read::<u16>(&[0u8; 2], reader)?),
+                19 => Entry::Module(read::<u16>(&[0u8; 2], reader)?),
+                20 => Entry::Package(read::<u16>(&[0u8; 2], reader)?),
                 _ => unreachable!(),
             };
         }
