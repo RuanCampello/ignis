@@ -43,7 +43,7 @@ pub(crate) enum ConstantPoolError {
     #[error("Accessed reserved slot: {0}")]
     UnusableSlot(u16),
     #[error(transparent)]
-    Formatter(#[from] std::fmt::Error),
+    Formatter(#[from] core::fmt::Error),
 }
 
 impl<'c> ConstantPool<'c> {
@@ -115,11 +115,11 @@ impl<'c> ConstantPool<'c> {
         }
 
         match self.get(index)? {
-            ConstantPoolEntry::Utf8(s) => write!(f, "Utf8 \"{s}\""),
-            ConstantPoolEntry::Integer(n) => write!(f, "Integer {n}"),
-            ConstantPoolEntry::Float(n) => write!(f, "Float {n}"),
-            ConstantPoolEntry::Long(int) => write!(f, "Long {int}"),
-            ConstantPoolEntry::Double(float) => write!(f, "Double {float}"),
+            ConstantPoolEntry::Utf8(s) => write!(f, "Utf8: \"{s}\""),
+            ConstantPoolEntry::Integer(int) => write!(f, "Integer: {int}"),
+            ConstantPoolEntry::Float(float) => write!(f, "Float: {float}"),
+            ConstantPoolEntry::Long(int) => write!(f, "Long: {int}"),
+            ConstantPoolEntry::Double(float) => write!(f, "Double: {float}"),
 
             ConstantPoolEntry::Class(idx) => {
                 write!(f, "Class: {} => (", idx)?;
@@ -156,5 +156,18 @@ impl<'c> ConstantPoolEntry<'c> {
     /// original 32-bit design and its operand stack.
     fn uses_two_slots(&self) -> bool {
         matches!(self, Self::Long(_) | Self::Double(_))
+    }
+}
+
+impl<'c> Display for ConstantPool<'c> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Constant pool with size: {}", self.entries.len())?;
+
+        for idx in 0..self.entries.len() as u16 {
+            writeln!(f, "   {idx}, ")?;
+            self.format_entry(idx, f).map_err(|_| std::fmt::Error)?;
+        }
+
+        Ok(())
     }
 }
