@@ -36,6 +36,13 @@ pub(crate) enum ConstantPoolEntry<'c> {
     MethodRef(u16, u16) = 10,
     InterfaceMethodRef(u16, u16) = 11,
     NameAndType(u16, u16) = 12,
+
+    MethodHandle(u8, u16) = 15,
+    MethodType(u16) = 16,
+    Dynamic(u16, u16) = 17,
+    InvokeDynamic(u16, u16) = 18,
+    Module(u16) = 19,
+    Package(u16) = 20,
 }
 
 #[derive(Error, Debug, PartialEq)]
@@ -93,14 +100,26 @@ impl<'c> ConstantPool<'c> {
             ConstantPoolEntry::Long(long) => write!(f, "{long}"),
             ConstantPoolEntry::Double(double) => write!(f, "{double}"),
 
-            ConstantPoolEntry::Class(idx) | ConstantPoolEntry::StringRef(idx) => {
+            ConstantPoolEntry::Class(idx)
+            | ConstantPoolEntry::StringRef(idx)
+            | ConstantPoolEntry::MethodType(idx)
+            | ConstantPoolEntry::Module(idx)
+            | ConstantPoolEntry::Package(idx) => {
                 return self.format(*idx, f);
+            }
+
+            ConstantPoolEntry::MethodHandle(idx, info) => {
+                self.format(*idx as _, f)?;
+                write!(f, ".")?;
+                Ok(self.format(*info, f)?)
             }
 
             ConstantPoolEntry::FieldRef(idx, info)
             | ConstantPoolEntry::MethodRef(idx, info)
             | ConstantPoolEntry::InterfaceMethodRef(idx, info)
-            | ConstantPoolEntry::NameAndType(idx, info) => {
+            | ConstantPoolEntry::NameAndType(idx, info)
+            | ConstantPoolEntry::Dynamic(idx, info)
+            | ConstantPoolEntry::InvokeDynamic(idx, info) => {
                 self.format(*idx, f)?;
                 write!(f, ".")?;
                 Ok(self.format(*info, f)?)
@@ -152,6 +171,7 @@ impl<'c> ConstantPool<'c> {
             ConstantPoolEntry::InterfaceMethodRef(idx, info) => {
                 return format_pair(self, "InterfaceMethodRef", *idx, *info, f);
             }
+            _ => unimplemented!(),
         }
         .map_err(Into::into)
     }
@@ -221,6 +241,10 @@ impl<'c> TryFrom<&mut Cursor<&'c [u8]>> for ConstantPool<'c> {
                         _ => Entry::InterfaceMethodRef(class_index, name_and_type_index),
                     }
                 }
+                12 => Entry::NameAndType(
+                    read::<u16>(&[0u8; 2], reader)?,
+                    read::<u16>(&[0u8; 2], reader)?,
+                ),
                 _ => unreachable!(),
             };
         }
