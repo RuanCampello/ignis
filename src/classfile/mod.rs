@@ -8,10 +8,25 @@
 //! The output of this module is a structured `ClassFile` representation, which is used by the class loader and interpreter.
 
 mod constant_pool;
+mod fields;
 
 use bitflags::bitflags;
 
-pub(crate) struct Classfile {}
+use constant_pool::ConstantPool;
+use fields::Field;
+
+/// Classfile structure defined by JVMS (4.1)
+pub(crate) struct Classfile<'p> {
+    magic: u32,
+    minor: u16,
+    major: u16,
+    constant_pool: ConstantPool<'p>,
+    access_flags: AccessFlags,
+    this_class: u16,
+    super_class: u16,
+    interfaces: Vec<u16>,
+    fields: Vec<Field>,
+}
 
 /// Magic header number for a `.class` file.
 pub(crate) const MAGIC: u32 = 0xCAFEBABE;
