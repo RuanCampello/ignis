@@ -127,6 +127,8 @@ impl<'c> TryFrom<&[u8]> for Classfile<'c> {
             interfaces.push(read::<u16>(&buff, &mut reader)?);
         }
 
+        let mut fields = Vec::with_capacity(read::<u16>(&buff, &mut reader)? as usize);
+
         todo!()
     }
 }

@@ -3,17 +3,19 @@
 
 use bitflags::bitflags;
 
+use super::attributes::Attribute;
+
 /// `field_info` defined by JVSM 4.5.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub(crate) struct Field {
-    access_flags: u8,
+    access_flags: FieldFlags,
     name_index: u16,
     descriptor_index: u16,
-    attributes_count: u16,
+    attributes: Vec<Attribute>,
 }
 
 bitflags! {
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
     pub(crate) struct FieldFlags: u16 {
         /// Declared public; may be accessed from outside its package.
         const PUBLIC    = 0x0001;
