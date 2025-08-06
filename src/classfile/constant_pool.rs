@@ -9,8 +9,6 @@ use core::fmt::{Display, Formatter};
 use std::io::{Cursor, Read, Seek, SeekFrom};
 use thiserror::Error;
 
-use super::attributes::AttributeError;
-
 /// Constant pool of a given Java class.
 #[derive(Debug, Default, PartialEq, Clone)]
 pub(crate) struct ConstantPool<'c> {
@@ -51,7 +49,7 @@ pub(crate) enum ConstantPoolEntry<'c> {
 pub(crate) enum ConstantPoolError {
     #[error("Invalid index location: {0}")]
     InvalidIndex(u16),
-    #[error("Attribute name is not utf8 but: {0}")]
+    #[error("Attribute name is not utf8 on index: {0}")]
     InvalidAttr(usize),
     #[error("Accessed reserved slot: {0}")]
     UnusableSlot(u16),
@@ -85,7 +83,11 @@ impl<'c> ConstantPool<'c> {
         self.get_with(index, |entry| Ok(entry))
     }
 
-    fn get_with<F, T>(&'c self, index: u16, check_and_convert: F) -> Result<T, ConstantPoolError>
+    pub fn get_with<F, T>(
+        &'c self,
+        index: u16,
+        check_and_convert: F,
+    ) -> Result<T, ConstantPoolError>
     where
         F: FnOnce(&'c ConstantPoolEntry<'c>) -> Result<T, ConstantPoolError>,
     {

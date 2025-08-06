@@ -11,7 +11,6 @@ mod attributes;
 mod constant_pool;
 mod fields;
 
-use attributes::AttributeError;
 use bitflags::bitflags;
 use constant_pool::{ConstantPool, ConstantPoolEntry, ConstantPoolError};
 use fields::Field;
