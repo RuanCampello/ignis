@@ -11,6 +11,7 @@ mod attributes;
 mod constant_pool;
 mod fields;
 
+use attributes::AttributeError;
 use bitflags::bitflags;
 use constant_pool::{ConstantPool, ConstantPoolEntry, ConstantPoolError};
 use fields::Field;
@@ -26,7 +27,7 @@ pub(crate) struct Classfile<'p> {
     this_class: u16,
     super_class: u16,
     interfaces: Vec<u16>,
-    fields: Vec<Field>,
+    fields: &'p [Field<'p>],
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -127,7 +128,7 @@ impl<'c> TryFrom<&[u8]> for Classfile<'c> {
             interfaces.push(read::<u16>(&buff, &mut reader)?);
         }
 
-        let mut fields = Vec::with_capacity(read::<u16>(&buff, &mut reader)? as usize);
+        // let mut fields = Vec::with_capacity(read::<u16>(&buff, &mut reader)? as usize);
 
         todo!()
     }

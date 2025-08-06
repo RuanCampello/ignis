@@ -9,6 +9,8 @@ use core::fmt::{Display, Formatter};
 use std::io::{Cursor, Read, Seek, SeekFrom};
 use thiserror::Error;
 
+use super::attributes::AttributeError;
+
 /// Constant pool of a given Java class.
 #[derive(Debug, Default, PartialEq, Clone)]
 pub(crate) struct ConstantPool<'c> {
@@ -49,6 +51,8 @@ pub(crate) enum ConstantPoolEntry<'c> {
 pub(crate) enum ConstantPoolError {
     #[error("Invalid index location: {0}")]
     InvalidIndex(u16),
+    #[error("Attribute name is not utf8 but: {0}")]
+    InvalidAttr(usize),
     #[error("Accessed reserved slot: {0}")]
     UnusableSlot(u16),
     #[error(transparent)]
@@ -78,13 +82,20 @@ impl<'c> ConstantPool<'c> {
     ///
     /// **Note**: it uses 1-index based.
     pub fn get(&self, index: u16) -> Result<&ConstantPoolEntry, ConstantPoolError> {
+        self.get_with(index, |entry| Ok(entry))
+    }
+
+    fn get_with<F, T>(&'c self, index: u16, check_and_convert: F) -> Result<T, ConstantPoolError>
+    where
+        F: FnOnce(&'c ConstantPoolEntry<'c>) -> Result<T, ConstantPoolError>,
+    {
         if index == 0 || index as usize > self.entries.len() {
             return Err(ConstantPoolError::InvalidIndex(index));
         }
 
         let idx = (index - 1) as usize;
         match self.entries.get(idx) {
-            Some(Some(entry)) => Ok(entry),
+            Some(Some(entry)) => check_and_convert(entry),
             Some(None) => Err(ConstantPoolError::UnusableSlot(index)),
             None => Err(ConstantPoolError::InvalidIndex(index)),
         }

@@ -7,11 +7,11 @@ use super::attributes::Attribute;
 
 /// `field_info` defined by JVSM 4.5.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub(crate) struct Field {
+pub(crate) struct Field<'at> {
     access_flags: FieldFlags,
     name_index: u16,
     descriptor_index: u16,
-    attributes: Vec<Attribute>,
+    attributes: Vec<Attribute<'at>>,
 }
 
 bitflags! {

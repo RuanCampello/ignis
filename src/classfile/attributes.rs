@@ -1,9 +1,17 @@
 //! The `attributes` in a `field_info` structure provide additional metadata about a given field.
 //! Those attributes are stored into an array of `attributes`, duh.
 
+use std::io::BufReader;
+
+use thiserror::Error;
+
+use crate::classfile::read;
+
+use super::{ClassfileError, constant_pool::ConstantPool};
+
 /// Attributes as defined by JSVM (4.7)
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub(crate) enum Attribute {
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub(crate) enum Attribute<'at> {
     /// JSVM (4.7.2)
     ConstantValue {
         constantvalue_index: u16,
@@ -13,9 +21,9 @@ pub(crate) enum Attribute {
     Code {
         max_stack: u16,
         max_locals: u16,
-        code: Vec<u8>,
-        exception_table: Vec<ExceptionEntry>,
-        attributes: Vec<Attribute>,
+        code: &'at [u8],
+        exception_table: &'at [ExceptionEntry],
+        attributes: &'at [Attribute<'at>],
     },
 
     /// JSVM (4.7.4)
@@ -69,4 +77,21 @@ pub(crate) struct ExceptionEntry {
     end_pc: u16,
     handler_pc: u16,
     catch_type: u16,
+}
+
+#[derive(Error, Debug)]
+pub(crate) enum AttributeError {}
+
+impl<'at> TryFrom<(&[u8], ConstantPool<'_>)> for Attribute<'at> {
+    type Error = ClassfileError;
+
+    fn try_from(value: (&[u8], ConstantPool)) -> Result<Self, Self::Error> {
+        let (buffer, constant_pool) = value;
+        let reader = &mut BufReader::new(buffer);
+
+        let attribute_name_index: u16 = read(&[0u8; 2], reader)?;
+        let attribute_name = constant_pool.get(attribute_name_index)?;
+
+        todo!()
+    }
 }
