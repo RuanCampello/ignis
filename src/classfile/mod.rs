@@ -104,27 +104,27 @@ impl<'c> TryFrom<&[u8]> for Classfile<'c> {
     fn try_from(buff: &[u8]) -> Result<Self, Self::Error> {
         let mut reader = BufReader::new(buff);
 
-        let magic = read::<u32>(&buff, &mut reader)?;
+        let magic = read::<u32>(&mut reader)?;
         if magic != MAGIC {
             return Err(ClassfileError::InvalidClassfile);
         }
 
-        let minor = read::<u16>(&buff, &mut reader)?;
-        let major = read::<u16>(&buff, &mut reader)?;
+        let minor = read::<u16>(&mut reader)?;
+        let major = read::<u16>(&mut reader)?;
         if !Version::is_valid(major) {
             return Err(ClassfileError::Version(major));
         }
         let version = Version::new(major, minor);
 
         let constant_pool = ConstantPool::try_from(&mut Cursor::new(buff))?;
-        let access_flag = AccessFlags::from_bits_truncate(read::<u16>(&buff, &mut reader)?);
+        let access_flag = AccessFlags::from_bits_truncate(read::<u16>(&mut reader)?);
 
-        let this_class: u16 = read(&buff, &mut reader)?;
-        let super_class: u16 = read(&buff, &mut reader)?;
+        let this_class: u16 = read(&mut reader)?;
+        let super_class: u16 = read(&mut reader)?;
 
-        let mut interfaces = Vec::with_capacity(read::<u16>(&buff, &mut reader)? as usize);
+        let mut interfaces = Vec::with_capacity(read::<u16>(&mut reader)? as usize);
         for _ in (0..interfaces.len()) {
-            interfaces.push(read::<u16>(&buff, &mut reader)?);
+            interfaces.push(read::<u16>(&mut reader)?);
         }
 
         // let mut fields = Vec::with_capacity(read::<u16>(&buff, &mut reader)? as usize);
@@ -143,7 +143,7 @@ impl Version {
     }
 }
 
-pub(self) fn read<T>(buff: &[u8], reader: &mut impl Read) -> Result<T, ClassfileError>
+pub(self) fn read<T>(reader: &mut impl Read) -> Result<T, ClassfileError>
 where
     T: FromBeBytes,
     T::Bytes: AsMut<[u8]> + Default,
@@ -152,4 +152,10 @@ where
     reader.read_exact(bytes.as_mut())?;
 
     Ok(T::from_be_bytes(bytes))
+}
+
+pub(self) fn read_bytes(size: usize, reader: &mut impl Read) -> Result<Vec<u8>, ClassfileError> {
+    let mut buffer = vec![0u8; size];
+    reader.read_exact(buffer.as_mut())?;
+    Ok(buffer)
 }

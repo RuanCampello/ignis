@@ -11,7 +11,7 @@ use thiserror::Error;
 
 /// Constant pool of a given Java class.
 #[derive(Debug, Default, PartialEq, Clone)]
-pub(crate) struct ConstantPool<'c> {
+pub(in crate::classfile) struct ConstantPool<'c> {
     entries: Vec<Option<ConstantPoolEntry<'c>>>,
 }
 
@@ -208,7 +208,7 @@ impl<'c> TryFrom<&mut Cursor<&'c [u8]>> for ConstantPool<'c> {
         use crate::classfile::read;
 
         let count = {
-            let mut buff = [0u8, 2];
+            let mut buff = [0u8; 2];
             reader.read_exact(&mut buff)?;
             u16::from_be_bytes(buff) as usize
         };
@@ -216,14 +216,14 @@ impl<'c> TryFrom<&mut Cursor<&'c [u8]>> for ConstantPool<'c> {
         let mut pool = ConstantPool::with_capacity(count);
 
         for mut idx in (0..count) {
-            let tag = read::<u8>(&[0u8], reader)?;
+            let tag = read::<u8>(reader)?;
 
             let entry = match tag {
                 1 => {
                     // FIXME: maybe we should support cesu8 strings, but it would be a pain in the
                     // ass to do that without allocating a new string instance or change the api to
                     // have a Cow
-                    let length = read::<u16>(&[0u8; 2], reader)? as usize;
+                    let length = read::<u16>(reader)? as usize;
                     let pos = reader.position() as usize;
                     reader.seek(SeekFrom::Current(length as i64))?;
 
@@ -232,45 +232,41 @@ impl<'c> TryFrom<&mut Cursor<&'c [u8]>> for ConstantPool<'c> {
 
                     Entry::Utf8(std::str::from_utf8(bytes)?)
                 }
-                3 => Entry::Integer(read::<i32>(&[0u8; 4], reader)?),
-                4 => Entry::Float(read::<f32>(&[0u8; 4], reader)?),
+                3 => Entry::Integer(read::<i32>(reader)?),
+                4 => Entry::Float(read::<f32>(reader)?),
                 5 => {
                     idx += 1;
-                    Entry::Long(read::<i64>(&[0u8; 8], reader)?)
+                    Entry::Long(read::<i64>(reader)?)
                 }
                 6 => {
                     idx += 1;
-                    Entry::Double(read::<f64>(&[0u8; 8], reader)?)
+                    Entry::Double(read::<f64>(reader)?)
                 }
-                7 => Entry::Class(read::<u16>(&[0u8; 2], reader)?),
-                8 => Entry::StringRef(read::<u16>(&[0u8; 2], reader)?),
+                7 => Entry::Class(read::<u16>(reader)?),
+                8 => Entry::StringRef(read::<u16>(reader)?),
                 9 | 10 | 11 | 17 | 18 => {
-                    let class_index: u16 = read(&[0u8; 2], reader)?;
-                    let name_and_type_index: u16 = read(&[0u8; 2], reader)?;
+                    let class_index: u16 = read(reader)?;
+                    let name_and_type_index: u16 = read(reader)?;
 
                     match tag {
                         9 => Entry::FieldRef(class_index, name_and_type_index),
                         10 => Entry::MethodRef(class_index, name_and_type_index),
                         11 => Entry::InterfaceMethodRef(class_index, name_and_type_index),
-                        // those aren't actually the name of the fields of these constants, but how
+                        // those aren't actually the name of the fields of these constants, but who
                         // cares
                         17 => Entry::Dynamic(class_index, name_and_type_index),
                         _ => Entry::InvokeDynamic(class_index, name_and_type_index),
                     }
                 }
-                12 => Entry::NameAndType(
-                    read::<u16>(&[0u8; 2], reader)?,
-                    read::<u16>(&[0u8; 2], reader)?,
-                ),
-                15 => Entry::MethodHandle(
-                    read::<u8>(&[0u8], reader)?,
-                    read::<u16>(&[0u8; 2], reader)?,
-                ),
-                16 => Entry::MethodType(read::<u16>(&[0u8; 2], reader)?),
-                19 => Entry::Module(read::<u16>(&[0u8; 2], reader)?),
-                20 => Entry::Package(read::<u16>(&[0u8; 2], reader)?),
+                12 => Entry::NameAndType(read::<u16>(reader)?, read::<u16>(reader)?),
+                15 => Entry::MethodHandle(read::<u8>(reader)?, read::<u16>(reader)?),
+                16 => Entry::MethodType(read::<u16>(reader)?),
+                19 => Entry::Module(read::<u16>(reader)?),
+                20 => Entry::Package(read::<u16>(reader)?),
                 _ => unreachable!(),
             };
+
+            pool.push(entry);
         }
 
         Ok(pool)

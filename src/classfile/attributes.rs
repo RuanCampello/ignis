@@ -4,14 +4,14 @@
 use super::{ClassfileError, constant_pool::ConstantPool};
 use crate::classfile::{
     constant_pool::{ConstantPoolEntry, ConstantPoolError},
-    read,
+    read, read_bytes,
 };
 use std::io::BufReader;
 use thiserror::Error;
 
 /// Attributes as defined by JSVM (4.7)
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub(crate) enum Attribute<'at> {
+pub(in crate::classfile) enum Attribute<'at> {
     /// JSVM (4.7.2)
     ConstantValue {
         constantvalue_index: u16,
@@ -72,7 +72,7 @@ pub(crate) enum Attribute<'at> {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub(crate) struct ExceptionEntry {
+pub(in crate::classfile) struct ExceptionEntry {
     start_pc: u16,
     end_pc: u16,
     handler_pc: u16,
@@ -86,15 +86,44 @@ impl<'at> TryFrom<(&[u8], ConstantPool<'_>)> for Attribute<'at> {
         let (buffer, constant_pool) = value;
         let reader = &mut BufReader::new(buffer);
 
-        let attribute_name_index: u16 = read(&[0u8; 2], reader)?;
-        let attribute_name = constant_pool.get_with(attribute_name_index, |entry| match entry {
-            ConstantPoolEntry::Utf8(utf8) => Ok(utf8),
-            _ => Err(ConstantPoolError::InvalidAttr(
-                attribute_name_index as usize,
-            )),
-        })?;
+        let attribute_name_index: u16 = read(reader)?;
+        let attribute_name: &str =
+            constant_pool.get_with(attribute_name_index, |entry| match entry {
+                ConstantPoolEntry::Utf8(utf8) => Ok(utf8),
+                _ => Err(ConstantPoolError::InvalidAttr(
+                    attribute_name_index as usize,
+                )),
+            })?;
 
-        let attribute_len: u32 = read(&[0u8; 4], reader)?;
+        let attribute_len: u32 = read(reader)?;
+        let attribute = match attribute_name {
+            "ConstantValue" => Attribute::ConstantValue {
+                constantvalue_index: read(reader)?,
+            },
+            "Code" => {
+                let max_stack: u16 = read(reader)?;
+                let max_locals: u16 = read(reader)?;
+                let code_len: u32 = read(reader)?;
+                let code = read_bytes(code_len as usize, reader)?.as_slice();
+
+                let expection_table_len: u16 = read(reader)?;
+                let mut expection_table = Vec::with_capacity(expection_table_len as usize);
+                for _ in (0..expection_table_len) {
+                    expection_table.push(ExceptionEntry {
+                        start_pc: read::<u16>(reader)?,
+                        end_pc: read::<u16>(reader)?,
+                        handler_pc: read::<u16>(reader)?,
+                        catch_type: read::<u16>(reader)?,
+                    })
+                }
+
+                let attributes_count: u16 = read(reader)?;
+
+                todo!()
+            }
+
+            _ => todo!(),
+        };
 
         todo!()
     }
