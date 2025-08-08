@@ -6,11 +6,11 @@ use crate::classfile::{
     constant_pool::{ConstantPoolEntry, ConstantPoolError},
     read, read_bytes,
 };
-use std::io::BufReader;
+use std::io::{BufReader, Read};
 use thiserror::Error;
 
 /// Attributes as defined by JSVM (4.7)
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub(in crate::classfile) enum Attribute<'at> {
     /// JSVM (4.7.2)
     ConstantValue {
@@ -22,8 +22,12 @@ pub(in crate::classfile) enum Attribute<'at> {
         max_stack: u16,
         max_locals: u16,
         code: &'at [u8],
-        exception_table: &'at [ExceptionEntry],
-        attributes: &'at [Attribute<'at>],
+        exception_table: Vec<ExceptionEntry>,
+        // PERFORMANCE: make this use references so we don't need to do heap allocation when moving this
+        // around
+        // exception_table: &'at [ExceptionEntry],
+        // attributes: &'at [Attribute<'at>],
+        attributes: Vec<Attribute<'at>>,
     },
 
     /// JSVM (4.7.4)
@@ -79,12 +83,19 @@ pub(in crate::classfile) struct ExceptionEntry {
     catch_type: u16,
 }
 
-impl<'at> TryFrom<(&[u8], ConstantPool<'_>)> for Attribute<'at> {
+impl<'at> AsRef<Attribute<'at>> for Attribute<'at> {
+    fn as_ref(&self) -> &Attribute<'at> {
+        self
+    }
+}
+
+impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
     type Error = ClassfileError;
 
-    fn try_from(value: (&[u8], ConstantPool)) -> Result<Self, Self::Error> {
+    fn try_from(value: (Vec<u8>, &'at ConstantPool)) -> Result<Self, Self::Error> {
         let (buffer, constant_pool) = value;
-        let reader = &mut BufReader::new(buffer);
+        let reader = &mut BufReader::new(buffer.as_slice());
+        let mut cursor = 0usize;
 
         let attribute_name_index: u16 = read(reader)?;
         let attribute_name: &str =
@@ -104,12 +115,12 @@ impl<'at> TryFrom<(&[u8], ConstantPool<'_>)> for Attribute<'at> {
                 let max_stack: u16 = read(reader)?;
                 let max_locals: u16 = read(reader)?;
                 let code_len: u32 = read(reader)?;
-                let code = read_bytes(code_len as usize, reader)?.as_slice();
+                let code = read_bytes(code_len as usize, reader, buffer.as_slice(), &mut cursor)?;
 
                 let expection_table_len: u16 = read(reader)?;
-                let mut expection_table = Vec::with_capacity(expection_table_len as usize);
+                let mut exception_table = Vec::with_capacity(expection_table_len as usize);
                 for _ in (0..expection_table_len) {
-                    expection_table.push(ExceptionEntry {
+                    exception_table.push(ExceptionEntry {
                         start_pc: read::<u16>(reader)?,
                         end_pc: read::<u16>(reader)?,
                         handler_pc: read::<u16>(reader)?,
@@ -117,9 +128,14 @@ impl<'at> TryFrom<(&[u8], ConstantPool<'_>)> for Attribute<'at> {
                     })
                 }
 
-                let attributes_count: u16 = read(reader)?;
-
-                todo!()
+                let attributes = get_attributes(reader, constant_pool)?;
+                Attribute::Code {
+                    max_stack,
+                    max_locals,
+                    code,
+                    exception_table,
+                    attributes,
+                }
             }
 
             _ => todo!(),
@@ -127,4 +143,23 @@ impl<'at> TryFrom<(&[u8], ConstantPool<'_>)> for Attribute<'at> {
 
         todo!()
     }
+}
+
+fn get_attributes<'at>(
+    reader: &mut BufReader<impl Read>,
+    constant_pool: &'at ConstantPool,
+) -> Result<Vec<Attribute<'at>>, ClassfileError> {
+    let attributes_count: u16 = read(reader)?;
+    let mut attributes = Vec::with_capacity(attributes_count as usize);
+
+    for _ in (0..attributes_count) {
+        let name_index: u16 = read(reader)?;
+        let length = read::<u32>(reader)? as usize;
+
+        let buffer = vec![0u8; length];
+        let attribute = Attribute::try_from((buffer, constant_pool))?;
+        attributes.push(attribute)
+    }
+
+    Ok(attributes)
 }
