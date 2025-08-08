@@ -6,6 +6,7 @@ use crate::classfile::{
     constant_pool::{ConstantPoolEntry, ConstantPoolError},
     read, read_bytes,
 };
+use bitflags::bitflags;
 use std::io::{BufReader, Read};
 use thiserror::Error;
 
@@ -34,8 +35,12 @@ pub(in crate::classfile) enum Attribute<'at> {
     StackMapTable,
 
     /// JSVM (4.7.5)
-    Exceptions,
-    InnerClasses,
+    Exceptions {
+        exception_index_table: Vec<u16>,
+    },
+    InnerClasses {
+        classes: Vec<InnerClassEntry>,
+    },
 
     /// JSVM (4.7.7)
     EnclosingMethod {
@@ -51,7 +56,10 @@ pub(in crate::classfile) enum Attribute<'at> {
         signature_index: u16,
     },
 
-    SourceFile,
+    SourceFile {
+        sourcefile_index: u16,
+    },
+
     SourceDebugExtension,
     LineNumberTable,
     LocalVariableTable,
@@ -83,6 +91,31 @@ pub(in crate::classfile) struct ExceptionEntry {
     catch_type: u16,
 }
 
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub(in crate::classfile) struct InnerClassEntry {
+    inner_class_info_index: u16,
+    outer_class_info_index: u16,
+    inner_name_index: u16,
+    inner_class_access_flags: InnerClassFlags,
+}
+
+bitflags! {
+    #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+    // TODO: add documentation for this ones
+    pub(crate) struct InnerClassFlags: u16 {
+        const PUBLIC     = 0x0001;
+        const PRIVATE    = 0x0002;
+        const PROTECTED  = 0x0004;
+        const STATIC     = 0x0008;
+        const FINAL      = 0x0010;
+        const INTERFACE  = 0x0200;
+        const ABSTRACT   = 0x0400;
+        const SYNTHETIC  = 0x1000;
+        const ANNOTATION = 0x2000;
+        const ENUM       = 0x4000;
+    }
+}
+
 impl<'at> AsRef<Attribute<'at>> for Attribute<'at> {
     fn as_ref(&self) -> &Attribute<'at> {
         self
@@ -111,6 +144,7 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
             "ConstantValue" => Attribute::ConstantValue {
                 constantvalue_index: read(reader)?,
             },
+
             "Code" => {
                 let max_stack: u16 = read(reader)?;
                 let max_locals: u16 = read(reader)?;
@@ -137,6 +171,60 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
                     attributes,
                 }
             }
+
+            "StackMapTable" => todo!(),
+
+            "Exceptions" => {
+                let exceptions_count: u16 = read(reader)?;
+
+                let mut exception_index_table = Vec::with_capacity(exceptions_count as usize);
+
+                for _ in (0..exceptions_count) {
+                    exception_index_table.push(read::<u16>(reader)?)
+                }
+
+                Attribute::Exceptions {
+                    exception_index_table,
+                }
+            }
+
+            "InnerClasses" => {
+                let number_of_classes: u16 = read(reader)?;
+                let mut classes = Vec::with_capacity(number_of_classes as usize);
+
+                for _ in (0..number_of_classes) {
+                    let entry = InnerClassEntry {
+                        inner_class_info_index: read(reader)?,
+                        outer_class_info_index: read(reader)?,
+                        inner_name_index: read(reader)?,
+                        inner_class_access_flags: InnerClassFlags::from_bits_truncate(read(
+                            reader,
+                        )?),
+                    };
+
+                    classes.push(entry)
+                }
+
+                Attribute::InnerClasses { classes }
+            }
+
+            "EnclosingMethod" => {
+                let class_index: u16 = read(reader)?;
+                let method_index: u16 = read(reader)?;
+
+                Attribute::EnclosingMethod {
+                    class_index,
+                    method_index,
+                }
+            }
+            "Synthetic" => Attribute::Synthetic,
+            "Deprecated" => Attribute::Deprecated,
+            "Signature" => Attribute::Signature {
+                signature_index: read::<u16>(reader)?,
+            },
+            "SourceFile" => Attribute::SourceFile {
+                sourcefile_index: read::<u16>(reader)?,
+            },
 
             _ => todo!(),
         };
