@@ -329,6 +329,9 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
                     local_variable_type_table,
                 }
             }
+            "AnnotationDefault" => {
+                todo!()
+            }
 
             _ => todo!(),
         };
@@ -354,4 +357,35 @@ fn get_attributes<'at>(
     }
 
     Ok(attributes)
+}
+
+fn get_annotation(
+    reader: &mut BufReader<impl Read>,
+    constant_pool: &ConstantPool,
+) -> Result<Annotation, ClassfileError> {
+    let type_index: u16 = read(reader)?;
+    let num_element_pairs = read::<u16>(reader)? as usize;
+    let mut element_value_pairs = Vec::with_capacity(num_element_pairs);
+
+    for _ in (0..num_element_pairs) {
+        let element_name_index: u16 = read(reader)?;
+        let element_value = get_element_value(reader, constant_pool)?;
+
+        element_value_pairs.push(ElementValuePair {
+            element_name_index,
+            element_value,
+        })
+    }
+
+    Ok(Annotation {
+        type_index,
+        element_value_pairs,
+    })
+}
+
+fn get_element_value(
+    reader: &mut BufReader<impl Read>,
+    constant_pool: &ConstantPool,
+) -> Result<ElementValue, ClassfileError> {
+    unimplemented!()
 }
