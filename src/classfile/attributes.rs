@@ -75,7 +75,10 @@ pub(in crate::classfile) enum Attribute<'at> {
     RuntimeInvisibleParameterAnnotations,
     RuntimeVisibleTypeAnnotations,
     RuntimeInvisibleTypeAnnotations,
-    AnnotationDefault,
+    AnnotationDefault {
+        element_value: ElementValue,
+        inner: Vec<u8>,
+    },
     BootstrapMethods,
     MethodParameters,
     Module,
@@ -85,6 +88,32 @@ pub(in crate::classfile) enum Attribute<'at> {
     NestMembers,
     Record,
     PermittedSubclasses,
+}
+
+/// `element_value` structure as defined by JSVM (4.7.16.1)
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub(in crate::classfile) enum ElementValue {
+    ConstValueIndex {
+        tag: u8,
+        const_value_index: u16,
+    },
+    EnumConstValue {
+        tag: u8,
+        type_name_index: u16,
+        const_name_index: u16,
+    },
+    ClassInfoIndex {
+        tag: u8,
+        class_info_index: u16,
+    },
+    Annotation {
+        tag: u8,
+        annotation_value: Annotation,
+    },
+    ArrayValue {
+        tag: u8,
+        array_value: Vec<ElementValue>,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -119,6 +148,18 @@ pub(in crate::classfile) struct LocalVariableTypeEntry {
     name_index: u16,
     signature_index: u16,
     index: u16,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub(in crate::classfile) struct Annotation {
+    type_index: u16,
+    element_value_pairs: Vec<ElementValuePair>,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub(in crate::classfile) struct ElementValuePair {
+    element_name_index: u16,
+    element_value: ElementValue,
 }
 
 bitflags! {
