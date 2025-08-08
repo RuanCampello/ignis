@@ -62,8 +62,12 @@ pub(in crate::classfile) enum Attribute<'at> {
 
     SourceDebugExtension,
     LineNumberTable,
-    LocalVariableTable,
-    LocalVariableTypeTable,
+    LocalVariableTable {
+        local_variable_table: Vec<LocalVariableEntry>,
+    },
+    LocalVariableTypeTable {
+        local_variable_type_table: Vec<LocalVariableTypeEntry>,
+    },
     Deprecated,
     RuntimeVisibleAnnotations,
     RuntimeInvisibleAnnotations,
@@ -97,6 +101,24 @@ pub(in crate::classfile) struct InnerClassEntry {
     outer_class_info_index: u16,
     inner_name_index: u16,
     inner_class_access_flags: InnerClassFlags,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub(in crate::classfile) struct LocalVariableEntry {
+    start_pc: u16,
+    length: u16,
+    name_index: u16,
+    descriptor_index: u16,
+    index: u16,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub(in crate::classfile) struct LocalVariableTypeEntry {
+    start_pc: u16,
+    length: u16,
+    name_index: u16,
+    signature_index: u16,
+    index: u16,
 }
 
 bitflags! {
@@ -225,6 +247,47 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
             "SourceFile" => Attribute::SourceFile {
                 sourcefile_index: read::<u16>(reader)?,
             },
+            "LocalVariableTable" => {
+                let local_variable_table_count: u16 = read(reader)?;
+                let mut local_variable_table = Vec::with_capacity(local_variable_table_count as _);
+
+                for _ in (0..local_variable_table_count) {
+                    let entry = LocalVariableEntry {
+                        start_pc: read(reader)?,
+                        length: read(reader)?,
+                        name_index: read(reader)?,
+                        descriptor_index: read(reader)?,
+                        index: read(reader)?,
+                    };
+
+                    local_variable_table.push(entry)
+                }
+
+                Attribute::LocalVariableTable {
+                    local_variable_table,
+                }
+            }
+            "LocalVariableTypeTable" => {
+                let local_variable_type_count: u16 = read(reader)?;
+                let mut local_variable_type_table =
+                    Vec::with_capacity(local_variable_type_count as _);
+
+                for _ in (0..local_variable_type_count) {
+                    let entry = LocalVariableTypeEntry {
+                        start_pc: read(reader)?,
+                        length: read(reader)?,
+                        name_index: read(reader)?,
+                        signature_index: read(reader)?,
+                        index: read(reader)?,
+                    };
+
+                    local_variable_type_table.push(entry);
+                }
+
+                Attribute::LocalVariableTypeTable {
+                    local_variable_type_table,
+                }
+            }
 
             _ => todo!(),
         };
