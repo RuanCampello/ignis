@@ -73,15 +73,20 @@ pub(in crate::classfile) enum Attribute<'at> {
         local_variable_type_table: Vec<LocalVariableTypeEntry>,
     },
     Deprecated,
-    RuntimeVisibleAnnotations,
-    RuntimeInvisibleAnnotations,
+    RuntimeVisibleAnnotations {
+        bytes: &'at [u8],
+        annotations: Vec<Annotation>,
+    },
+    RuntimeInvisibleAnnotations {
+        annotations: Vec<Annotation>,
+    },
     RuntimeVisibleParameterAnnotations,
     RuntimeInvisibleParameterAnnotations,
     RuntimeVisibleTypeAnnotations,
     RuntimeInvisibleTypeAnnotations,
     AnnotationDefault {
         element_value: ElementValue,
-        inner: Vec<u8>,
+        bytes: &'at [u8],
     },
     BootstrapMethods,
     MethodParameters,
@@ -355,8 +360,47 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
                     local_variable_type_table,
                 }
             }
+
+            "RuntimeVisibleAnnotations" => {
+                let bytes = read_bytes(
+                    attribute_len as usize,
+                    reader,
+                    buffer.as_slice(),
+                    &mut cursor,
+                )?;
+                let annotation_count = read::<u16>(reader)? as usize;
+                let mut annotations = Vec::with_capacity(annotation_count);
+
+                for _ in (0..annotation_count) {
+                    annotations.push(get_annotation(reader, constant_pool)?);
+                }
+
+                Attribute::RuntimeVisibleAnnotations { annotations, bytes }
+            }
+
+            "RuntimeInvisibleAnnotations" => {
+                let annotation_count = read::<u16>(reader)? as usize;
+                let mut annotations = Vec::with_capacity(annotation_count);
+
+                for _ in (0..annotation_count) {
+                    annotations.push(get_annotation(reader, constant_pool)?);
+                }
+
+                Attribute::RuntimeInvisibleAnnotations { annotations }
+            }
+
             "AnnotationDefault" => {
-                todo!()
+                let bytes = read_bytes(
+                    attribute_len as usize,
+                    reader,
+                    buffer.as_slice(),
+                    &mut cursor,
+                )?;
+
+                Attribute::AnnotationDefault {
+                    element_value: get_element_value(reader, constant_pool)?,
+                    bytes,
+                }
             }
 
             _ => todo!(),
