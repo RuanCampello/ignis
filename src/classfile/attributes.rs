@@ -61,7 +61,11 @@ pub(in crate::classfile) enum Attribute<'at> {
     },
 
     SourceDebugExtension,
-    LineNumberTable,
+
+    /// JSVM (4.7.12)
+    LineNumberTable {
+        line_number_table: Vec<LineNumberEntry>,
+    },
     LocalVariableTable {
         local_variable_table: Vec<LocalVariableEntry>,
     },
@@ -130,6 +134,12 @@ pub(in crate::classfile) struct InnerClassEntry {
     outer_class_info_index: u16,
     inner_name_index: u16,
     inner_class_access_flags: InnerClassFlags,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub(in crate::classfile) struct LineNumberEntry {
+    start_pc: u16,
+    line_number: u16,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -288,6 +298,22 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
             "SourceFile" => Attribute::SourceFile {
                 sourcefile_index: read::<u16>(reader)?,
             },
+
+            "LineNumberTable" => {
+                let line_number_table_count = read::<u16>(reader)? as usize;
+                let mut line_number_table = Vec::with_capacity(line_number_table_count);
+                for _ in (0..line_number_table_count) {
+                    let entry = LineNumberEntry {
+                        start_pc: read(reader)?,
+                        line_number: read(reader)?,
+                    };
+
+                    line_number_table.push(entry);
+                }
+
+                Attribute::LineNumberTable { line_number_table }
+            }
+
             "LocalVariableTable" => {
                 let local_variable_table_count: u16 = read(reader)?;
                 let mut local_variable_table = Vec::with_capacity(local_variable_table_count as _);
