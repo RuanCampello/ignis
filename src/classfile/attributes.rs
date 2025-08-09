@@ -121,7 +121,7 @@ pub(in crate::classfile) enum ElementValue {
     },
     ArrayValue {
         tag: u8,
-        array_value: Vec<ElementValue>,
+        values: Vec<ElementValue>,
     },
 }
 
@@ -457,5 +457,43 @@ fn get_element_value(
     reader: &mut BufReader<impl Read>,
     constant_pool: &ConstantPool,
 ) -> Result<ElementValue, ClassfileError> {
-    unimplemented!()
+    let tag: u8 = read(reader)?;
+
+    match tag {
+        b'B' | b'C' | b'D' | b'F' | b'I' | b'J' | b'S' | b'Z' | b's' => {
+            Ok(ElementValue::ConstValueIndex {
+                tag,
+                const_value_index: read(reader)?,
+            })
+        }
+
+        b'e' => Ok(ElementValue::EnumConstValue {
+            tag,
+            type_name_index: read(reader)?,
+            const_name_index: read(reader)?,
+        }),
+
+        b'c' => Ok(ElementValue::ClassInfoIndex {
+            tag,
+            class_info_index: read(reader)?,
+        }),
+
+        b'@' => Ok(ElementValue::Annotation {
+            tag,
+            annotation_value: get_annotation(reader, constant_pool)?,
+        }),
+
+        b'[' => {
+            let values_count = read::<u16>(reader)? as usize;
+            let mut values = Vec::with_capacity(values_count);
+
+            for _ in (0..values_count) {
+                values.push(get_element_value(reader, constant_pool)?);
+            }
+
+            Ok(ElementValue::ArrayValue { tag, values })
+        }
+
+        _ => unreachable!("ElementValue with tag: '{tag}' is not applicable"),
+    }
 }
