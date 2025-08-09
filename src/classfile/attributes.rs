@@ -32,7 +32,9 @@ pub(in crate::classfile) enum Attribute<'at> {
     },
 
     /// JSVM (4.7.4)
-    StackMapTable,
+    StackMapTable {
+        entries: Vec<StackMapEntry<'at>>,
+    },
 
     /// JSVM (4.7.5)
     Exceptions {
@@ -66,12 +68,15 @@ pub(in crate::classfile) enum Attribute<'at> {
     LineNumberTable {
         line_number_table: Vec<LineNumberEntry>,
     },
+
     LocalVariableTable {
         local_variable_table: Vec<LocalVariableEntry>,
     },
+
     LocalVariableTypeTable {
         local_variable_type_table: Vec<LocalVariableTypeEntry>,
     },
+
     Deprecated,
     RuntimeVisibleAnnotations {
         bytes: &'at [u8],
@@ -134,6 +139,49 @@ pub(in crate::classfile) struct ExceptionEntry {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub(in crate::classfile) enum StackMapEntry<'st> {
+    SameFrame {
+        frame_type: FrameType,
+        offset_delta: u16,
+    },
+
+    SameStack {
+        frame_type: FrameType,
+        offset_delta: u16,
+        stack: VerificationTypeInfo,
+    },
+
+    SameStackExtended {
+        frame_type: FrameType,
+        offset_delta: u16,
+        stack: VerificationTypeInfo,
+    },
+
+    ChopFrame {
+        frame_type: FrameType,
+        offset_delta: u16,
+    },
+
+    SameFrameExtended {
+        frame_type: FrameType,
+        offset_delta: u16,
+    },
+
+    AppendFrame {
+        frame_type: FrameType,
+        offset_delta: u16,
+        locals: &'st [VerificationTypeInfo],
+    },
+
+    FullFrame {
+        frame_type: FrameType,
+        offset_delta: u8,
+        locals: &'st [VerificationTypeInfo],
+        stack: &'st [VerificationTypeInfo],
+    },
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub(in crate::classfile) struct InnerClassEntry {
     inner_class_info_index: u16,
     outer_class_info_index: u16,
@@ -175,6 +223,32 @@ pub(in crate::classfile) struct Annotation {
 pub(in crate::classfile) struct ElementValuePair {
     element_name_index: u16,
     element_value: ElementValue,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[repr(u8)]
+pub(in crate::classfile) enum FrameType {
+    SameFrame,
+    SameStack,
+    SameStackExtended,
+    ChopFrame { k: u8 },
+    SameFrameExtended,
+    AppendFrame { k: u8 },
+    FullFrame,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[repr(u8)]
+pub(in crate::classfile) enum VerificationTypeInfo {
+    TopVariable,
+    IntegerVariable,
+    FloatVariable,
+    LongVariable,
+    DoubleVariable,
+    NullVariable,
+    UninitializedThisVariable,
+    ObjectVariable { cpool_index: u16 },
+    UninitializedVariable { offset: u16 },
 }
 
 bitflags! {
@@ -407,6 +481,21 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
         };
 
         todo!()
+    }
+}
+
+impl From<u8> for FrameType {
+    fn from(value: u8) -> Self {
+        match value {
+            0..=63 => Self::SameFrame,
+            64..=127 => Self::SameStack,
+            247 => Self::SameStackExtended,
+            248..=250 => Self::ChopFrame { k: 251 - value },
+            251 => Self::SameFrameExtended,
+            252..=254 => Self::AppendFrame { k: value - 251 },
+            255 => Self::FullFrame,
+            _ => unreachable!("FrameType for '{value}' is not defined"),
+        }
     }
 }
 
