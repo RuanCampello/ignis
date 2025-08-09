@@ -5,14 +5,17 @@
 //!
 //! [constant pool]: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-2.html#jvms-2.5.5
 
+use bumpalo::{Bump, collections::Vec};
 use core::fmt::{Display, Formatter};
 use std::io::{Cursor, Read, Seek, SeekFrom};
 use thiserror::Error;
 
+use crate::classfile::ClassfileError;
+
 /// Constant pool of a given Java class.
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub(in crate::classfile) struct ConstantPool<'c> {
-    entries: Vec<Option<ConstantPoolEntry<'c>>>,
+    entries: Vec<'c, Option<ConstantPoolEntry<'c>>>,
 }
 
 /// A given entry in the constant pool.
@@ -58,14 +61,69 @@ pub(crate) enum ConstantPoolError {
 }
 
 impl<'c> ConstantPool<'c> {
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            entries: Vec::with_capacity(capacity),
+    pub fn new(
+        reader: &mut Cursor<&'c [u8]>,
+        arena: &'c bumpalo::Bump,
+    ) -> Result<Self, ClassfileError> {
+        use crate::classfile::read;
+
+        let count = {
+            let mut buff = [0u8; 2];
+            reader.read_exact(&mut buff)?;
+            u16::from_be_bytes(buff) as usize
+        };
+
+        let mut pool = ConstantPool::with_capacity(count, arena);
+
+        let mut idx = 0;
+        while idx < count {
+            let tag = read::<u8>(reader)?;
+            let entry = match tag {
+                1 => todo!(),
+                3 => ConstantPoolEntry::Integer(read::<i32>(reader)?),
+                4 => ConstantPoolEntry::Float(read::<f32>(reader)?),
+                5 => {
+                    idx += 1;
+                    ConstantPoolEntry::Long(read::<i64>(reader)?)
+                }
+                6 => {
+                    idx += 1;
+                    ConstantPoolEntry::Double(read::<f64>(reader)?)
+                }
+                7 => ConstantPoolEntry::Class(read::<u16>(reader)?),
+                8 => ConstantPoolEntry::StringRef(read::<u16>(reader)?),
+                9 | 10 | 11 | 17 | 18 => {
+                    let class_index: u16 = read(reader)?;
+                    let name_and_type_index: u16 = read(reader)?;
+                    match tag {
+                        9 => ConstantPoolEntry::FieldRef(class_index, name_and_type_index),
+                        10 => ConstantPoolEntry::MethodRef(class_index, name_and_type_index),
+                        11 => {
+                            ConstantPoolEntry::InterfaceMethodRef(class_index, name_and_type_index)
+                        }
+                        17 => ConstantPoolEntry::Dynamic(class_index, name_and_type_index),
+                        _ => ConstantPoolEntry::InvokeDynamic(class_index, name_and_type_index),
+                    }
+                }
+                12 => ConstantPoolEntry::NameAndType(read::<u16>(reader)?, read::<u16>(reader)?),
+                15 => ConstantPoolEntry::MethodHandle(read::<u8>(reader)?, read::<u16>(reader)?),
+                16 => ConstantPoolEntry::MethodType(read::<u16>(reader)?),
+                19 => ConstantPoolEntry::Module(read::<u16>(reader)?),
+                20 => ConstantPoolEntry::Package(read::<u16>(reader)?),
+                _ => unreachable!(),
+            };
+
+            pool.push(entry);
+            idx += 1;
         }
+
+        Ok(pool)
     }
 
-    pub fn new() -> Self {
-        Self::default()
+    pub fn with_capacity(capacity: usize, arena: &'c Bump) -> Self {
+        ConstantPool {
+            entries: Vec::with_capacity_in(capacity, arena),
+        }
     }
 
     pub fn push(&mut self, entry: ConstantPoolEntry<'c>) {
@@ -200,79 +258,6 @@ impl<'c> ConstantPoolEntry<'c> {
     }
 }
 
-impl<'c> TryFrom<&mut Cursor<&'c [u8]>> for ConstantPool<'c> {
-    type Error = crate::classfile::ClassfileError;
-
-    fn try_from(reader: &mut Cursor<&'c [u8]>) -> Result<Self, Self::Error> {
-        use super::ConstantPoolEntry as Entry;
-        use crate::classfile::read;
-
-        let count = {
-            let mut buff = [0u8; 2];
-            reader.read_exact(&mut buff)?;
-            u16::from_be_bytes(buff) as usize
-        };
-
-        let mut pool = ConstantPool::with_capacity(count);
-
-        for mut idx in (0..count) {
-            let tag = read::<u8>(reader)?;
-
-            let entry = match tag {
-                1 => {
-                    // FIXME: maybe we should support cesu8 strings, but it would be a pain in the
-                    // ass to do that without allocating a new string instance or change the api to
-                    // have a Cow
-                    let length = read::<u16>(reader)? as usize;
-                    let pos = reader.position() as usize;
-                    reader.seek(SeekFrom::Current(length as i64))?;
-
-                    let data = reader.get_ref();
-                    let bytes = &data[pos..pos + length];
-
-                    Entry::Utf8(std::str::from_utf8(bytes)?)
-                }
-                3 => Entry::Integer(read::<i32>(reader)?),
-                4 => Entry::Float(read::<f32>(reader)?),
-                5 => {
-                    idx += 1;
-                    Entry::Long(read::<i64>(reader)?)
-                }
-                6 => {
-                    idx += 1;
-                    Entry::Double(read::<f64>(reader)?)
-                }
-                7 => Entry::Class(read::<u16>(reader)?),
-                8 => Entry::StringRef(read::<u16>(reader)?),
-                9 | 10 | 11 | 17 | 18 => {
-                    let class_index: u16 = read(reader)?;
-                    let name_and_type_index: u16 = read(reader)?;
-
-                    match tag {
-                        9 => Entry::FieldRef(class_index, name_and_type_index),
-                        10 => Entry::MethodRef(class_index, name_and_type_index),
-                        11 => Entry::InterfaceMethodRef(class_index, name_and_type_index),
-                        // those aren't actually the name of the fields of these constants, but who
-                        // cares
-                        17 => Entry::Dynamic(class_index, name_and_type_index),
-                        _ => Entry::InvokeDynamic(class_index, name_and_type_index),
-                    }
-                }
-                12 => Entry::NameAndType(read::<u16>(reader)?, read::<u16>(reader)?),
-                15 => Entry::MethodHandle(read::<u8>(reader)?, read::<u16>(reader)?),
-                16 => Entry::MethodType(read::<u16>(reader)?),
-                19 => Entry::Module(read::<u16>(reader)?),
-                20 => Entry::Package(read::<u16>(reader)?),
-                _ => unreachable!(),
-            };
-
-            pool.push(entry);
-        }
-
-        Ok(pool)
-    }
-}
-
 impl<'c> Display for ConstantPool<'c> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Constant pool with size: {}", self.entries.len())?;
@@ -290,9 +275,18 @@ impl<'c> Display for ConstantPool<'c> {
 mod tests {
     use super::*;
 
+    impl<'c> ConstantPool<'c> {
+        fn default(bump: &'c Bump) -> Self {
+            Self {
+                entries: bumpalo::collections::Vec::new_in(bump),
+            }
+        }
+    }
+
     #[test]
     fn constant_pool() -> Result<(), ConstantPoolError> {
-        let mut pool = ConstantPool::new();
+        let arena = Bump::new();
+        let mut pool = ConstantPool::default(&arena);
 
         pool.push(ConstantPoolEntry::Utf8("hello world")); // 1
         pool.push(ConstantPoolEntry::Integer(1i32)); // 2

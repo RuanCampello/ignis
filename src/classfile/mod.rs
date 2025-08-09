@@ -11,7 +11,9 @@ mod attributes;
 mod constant_pool;
 mod fields;
 
+use self::{attributes::get_attributes, fields::FieldFlags};
 use bitflags::bitflags;
+use bumpalo::{Bump, collections::Vec};
 use constant_pool::{ConstantPool, ConstantPoolEntry, ConstantPoolError};
 use fields::Field;
 use std::io::{BufReader, Cursor, Read, Seek, SeekFrom};
@@ -25,7 +27,7 @@ pub(crate) struct Classfile<'p> {
     access_flags: AccessFlags,
     this_class: u16,
     super_class: u16,
-    interfaces: Vec<u16>,
+    interfaces: &'p [u16],
     fields: &'p [Field<'p>],
 }
 
@@ -98,10 +100,11 @@ macro_rules! impl_from_be_bytes {
 
 impl_from_be_bytes!(u8, u16, u32, u64, i8, i16, i32, i64, f32, f64);
 
-impl<'c> TryFrom<&[u8]> for Classfile<'c> {
-    type Error = ClassfileError;
-
-    fn try_from(buff: &[u8]) -> Result<Self, Self::Error> {
+impl<'c> Classfile<'c> {
+    fn new<'b>(buff: &'b [u8], arena: &'c Bump) -> Result<Self, ClassfileError>
+    where
+        'b: 'c,
+    {
         let mut reader = BufReader::new(buff);
 
         let magic = read::<u32>(&mut reader)?;
@@ -116,20 +119,38 @@ impl<'c> TryFrom<&[u8]> for Classfile<'c> {
         }
         let version = Version::new(major, minor);
 
-        let constant_pool = ConstantPool::try_from(&mut Cursor::new(buff))?;
-        let access_flag = AccessFlags::from_bits_truncate(read::<u16>(&mut reader)?);
-
+        let constant_pool = ConstantPool::new(&mut Cursor::new(buff), arena)?;
+        let access_flags = AccessFlags::from_bits_truncate(read::<u16>(&mut reader)?);
         let this_class: u16 = read(&mut reader)?;
         let super_class: u16 = read(&mut reader)?;
 
-        let mut interfaces = Vec::with_capacity(read::<u16>(&mut reader)? as usize);
+        let mut interfaces = Vec::with_capacity_in(read::<u16>(&mut reader)? as usize, arena);
         for _ in (0..interfaces.len()) {
             interfaces.push(read::<u16>(&mut reader)?);
         }
+        let interfaces: &'c [u16] = interfaces.into_bump_slice();
 
-        // let mut fields = Vec::with_capacity(read::<u16>(&buff, &mut reader)? as usize);
+        let mut fields = Vec::with_capacity_in(read::<u16>(&mut reader)? as usize, arena);
+        let fields_count = read::<u16>(&mut reader)? as usize;
+        for _ in (0..fields_count) {
+            fields.push(Field {
+                access_flags: FieldFlags::from_bits_truncate(read(&mut reader)?),
+                name_index: read(&mut reader)?,
+                descriptor_index: read(&mut reader)?,
+                attributes: get_attributes(&mut reader, &constant_pool, arena)?,
+            })
+        }
+        let fields: &'c [Field<'c>] = fields.into_bump_slice();
 
-        todo!()
+        Ok(Classfile {
+            version,
+            constant_pool,
+            access_flags,
+            this_class,
+            super_class,
+            interfaces,
+            fields,
+        })
     }
 }
 

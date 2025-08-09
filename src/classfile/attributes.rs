@@ -7,90 +7,67 @@ use crate::classfile::{
     read, read_bytes,
 };
 use bitflags::bitflags;
+use bumpalo::collections::Vec;
 use std::io::{BufReader, Read};
 use thiserror::Error;
 
 /// Attributes as defined by JSVM (4.7)
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub(in crate::classfile) enum Attribute<'at> {
-    /// JSVM (4.7.2)
     ConstantValue {
         constantvalue_index: u16,
     },
-
-    /// JSVM (4.7.3)
     Code {
         max_stack: u16,
         max_locals: u16,
         code: &'at [u8],
-        exception_table: Vec<ExceptionEntry>,
-        // PERFORMANCE: make this use references so we don't need to do heap allocation when moving this
-        // around
-        // exception_table: &'at [ExceptionEntry],
-        // attributes: &'at [Attribute<'at>],
-        attributes: Vec<Attribute<'at>>,
+        exception_table: &'at [ExceptionEntry],
+        attributes: &'at [Attribute<'at>],
     },
-
-    /// JSVM (4.7.4)
     StackMapTable {
-        entries: Vec<StackMapEntry>,
+        entries: &'at [StackMapEntry<'at>],
     },
-
-    /// JSVM (4.7.5)
     Exceptions {
-        exception_index_table: Vec<u16>,
+        exception_index_table: &'at [u16],
     },
     InnerClasses {
-        classes: Vec<InnerClassEntry>,
+        classes: &'at [InnerClassEntry],
     },
-
-    /// JSVM (4.7.7)
     EnclosingMethod {
         class_index: u16,
         method_index: u16,
     },
-
-    /// JSVM (4.7.8)
     Synthetic,
-
-    /// JSVM (4.7.9)
     Signature {
         signature_index: u16,
     },
-
     SourceFile {
         sourcefile_index: u16,
     },
-
     SourceDebugExtension,
-
-    /// JSVM (4.7.12)
     LineNumberTable {
-        line_number_table: Vec<LineNumberEntry>,
+        line_number_table: &'at [LineNumberEntry],
     },
-
     LocalVariableTable {
-        local_variable_table: Vec<LocalVariableEntry>,
+        local_variable_table: &'at [LocalVariableEntry],
     },
-
     LocalVariableTypeTable {
-        local_variable_type_table: Vec<LocalVariableTypeEntry>,
+        local_variable_type_table: &'at [LocalVariableTypeEntry],
     },
-
     Deprecated,
     RuntimeVisibleAnnotations {
         bytes: &'at [u8],
-        annotations: Vec<Annotation>,
+        annotations: &'at [Annotation<'at>],
     },
     RuntimeInvisibleAnnotations {
-        annotations: Vec<Annotation>,
+        annotations: &'at [Annotation<'at>],
     },
     RuntimeVisibleParameterAnnotations,
     RuntimeInvisibleParameterAnnotations,
     RuntimeVisibleTypeAnnotations,
     RuntimeInvisibleTypeAnnotations,
     AnnotationDefault {
-        element_value: ElementValue,
+        element_value: ElementValue<'at>,
         bytes: &'at [u8],
     },
     BootstrapMethods,
@@ -98,23 +75,21 @@ pub(in crate::classfile) enum Attribute<'at> {
     Module,
     ModulePackages,
     ModuleMainClass,
-
     NestHost {
         host_class_index: u16,
     },
     NestMembers {
-        classes: Vec<u16>,
+        classes: &'at [u16],
     },
-
     Record {
-        components: Vec<RecordComponentInfo<'at>>,
+        components: &'at [RecordComponentInfo<'at>],
     },
     PermittedSubclasses,
 }
 
 /// `element_value` structure as defined by JSVM (4.7.16.1)
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub(in crate::classfile) enum ElementValue {
+pub(in crate::classfile) enum ElementValue<'at> {
     ConstValueIndex {
         tag: u8,
         const_value_index: u16,
@@ -130,11 +105,11 @@ pub(in crate::classfile) enum ElementValue {
     },
     Annotation {
         tag: u8,
-        annotation_value: Annotation,
+        annotation_value: Annotation<'at>,
     },
     ArrayValue {
         tag: u8,
-        values: Vec<ElementValue>,
+        values: &'at [ElementValue<'at>],
     },
 }
 
@@ -147,7 +122,7 @@ pub(in crate::classfile) struct ExceptionEntry {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub(in crate::classfile) enum StackMapEntry {
+pub(in crate::classfile) enum StackMapEntry<'st> {
     SameFrame {
         offset_delta: u16,
     },
@@ -167,12 +142,12 @@ pub(in crate::classfile) enum StackMapEntry {
     },
     AppendFrame {
         offset_delta: u16,
-        locals: Vec<VerificationTypeInfo>,
+        locals: &'st [VerificationTypeInfo],
     },
     FullFrame {
         offset_delta: u8,
-        locals: Vec<VerificationTypeInfo>,
-        stack: Vec<VerificationTypeInfo>,
+        locals: &'st [VerificationTypeInfo],
+        stack: &'st [VerificationTypeInfo],
     },
 }
 
@@ -209,22 +184,22 @@ pub(in crate::classfile) struct LocalVariableTypeEntry {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub(in crate::classfile) struct Annotation {
+pub(in crate::classfile) struct Annotation<'el> {
     type_index: u16,
-    element_value_pairs: Vec<ElementValuePair>,
+    element_value_pairs: &'el [ElementValuePair<'el>],
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub(in crate::classfile) struct ElementValuePair {
+pub(in crate::classfile) struct ElementValuePair<'el> {
     element_name_index: u16,
-    element_value: ElementValue,
+    element_value: ElementValue<'el>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub(in crate::classfile) struct RecordComponentInfo<'at> {
     name_index: u16,
     descriptor_index: u16,
-    attributes: Vec<Attribute<'at>>,
+    attributes: &'at [Attribute<'at>],
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -276,12 +251,13 @@ impl<'at> AsRef<Attribute<'at>> for Attribute<'at> {
     }
 }
 
-impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
-    type Error = ClassfileError;
-
-    fn try_from(value: (Vec<u8>, &'at ConstantPool)) -> Result<Self, Self::Error> {
-        let (buffer, constant_pool) = value;
-        let reader = &mut BufReader::new(buffer.as_slice());
+impl<'at> Attribute<'at> {
+    fn new(
+        buffer: &[u8],
+        constant_pool: &ConstantPool,
+        arena: &'at bumpalo::Bump,
+    ) -> Result<Self, ClassfileError> {
+        let reader = &mut BufReader::new(buffer);
         let mut cursor = 0usize;
 
         let attribute_name_index: u16 = read(reader)?;
@@ -303,10 +279,11 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
                 let max_stack: u16 = read(reader)?;
                 let max_locals: u16 = read(reader)?;
                 let code_len: u32 = read(reader)?;
-                let code = read_bytes(code_len as usize, reader, buffer.as_slice(), &mut cursor)?;
+                let code = read_bytes(code_len as usize, reader, buffer, &mut cursor)?;
 
                 let expection_table_len: u16 = read(reader)?;
-                let mut exception_table = Vec::with_capacity(expection_table_len as usize);
+                let mut exception_table =
+                    Vec::with_capacity_in(expection_table_len as usize, arena);
                 for _ in (0..expection_table_len) {
                     exception_table.push(ExceptionEntry {
                         start_pc: read::<u16>(reader)?,
@@ -316,19 +293,19 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
                     })
                 }
 
-                let attributes = get_attributes(reader, constant_pool)?;
+                let attributes = get_attributes(reader, constant_pool, arena)?;
                 Attribute::Code {
                     max_stack,
                     max_locals,
                     code,
-                    exception_table,
+                    exception_table: exception_table.into_bump_slice(),
                     attributes,
                 }
             }
 
             "StackMapTable" => {
                 let stack_map_table_entries = read::<u16>(reader)? as usize;
-                let mut entries = Vec::with_capacity(stack_map_table_entries);
+                let mut entries = Vec::with_capacity_in(stack_map_table_entries, arena);
 
                 for _ in (0..stack_map_table_entries) {
                     let frame_byte: u8 = read(reader)?;
@@ -370,14 +347,14 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
 
                         FrameType::AppendFrame { k } => {
                             let offset_delta = read(reader)?;
-                            let mut locals = Vec::with_capacity(k as usize);
+                            let mut locals = Vec::with_capacity_in(k as usize, arena);
                             for _ in (0..k) {
                                 locals.push(VerificationTypeInfo::try_from(&mut *reader)?);
                             }
 
                             StackMapEntry::AppendFrame {
                                 offset_delta,
-                                locals,
+                                locals: locals.into_bump_slice(),
                             }
                         }
 
@@ -385,19 +362,19 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
                             let offset_delta = read(reader)?;
 
                             let locals_count = read::<u16>(reader)? as usize;
-                            let mut locals = Vec::with_capacity(locals_count);
+                            let mut locals = Vec::with_capacity_in(locals_count, arena);
 
                             for _ in (0..locals_count) {
                                 locals.push(VerificationTypeInfo::try_from(&mut *reader)?);
                             }
 
                             let stack_count = read::<u16>(reader)? as usize;
-                            let mut stack = Vec::with_capacity(stack_count);
+                            let mut stack = Vec::with_capacity_in(stack_count, arena);
 
                             StackMapEntry::FullFrame {
                                 offset_delta,
-                                locals,
-                                stack,
+                                locals: locals.into_bump_slice(),
+                                stack: stack.into_bump_slice(),
                             }
                         }
                     };
@@ -405,26 +382,29 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
                     entries.push(entry)
                 }
 
-                Attribute::StackMapTable { entries }
+                Attribute::StackMapTable {
+                    entries: entries.into_bump_slice(),
+                }
             }
 
             "Exceptions" => {
                 let exceptions_count: u16 = read(reader)?;
 
-                let mut exception_index_table = Vec::with_capacity(exceptions_count as usize);
+                let mut exception_index_table =
+                    Vec::with_capacity_in(exceptions_count as usize, arena);
 
                 for _ in (0..exceptions_count) {
                     exception_index_table.push(read::<u16>(reader)?)
                 }
 
                 Attribute::Exceptions {
-                    exception_index_table,
+                    exception_index_table: exception_index_table.into_bump_slice(),
                 }
             }
 
             "InnerClasses" => {
                 let number_of_classes: u16 = read(reader)?;
-                let mut classes = Vec::with_capacity(number_of_classes as usize);
+                let mut classes = Vec::with_capacity_in(number_of_classes as usize, arena);
 
                 for _ in (0..number_of_classes) {
                     let entry = InnerClassEntry {
@@ -439,7 +419,9 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
                     classes.push(entry)
                 }
 
-                Attribute::InnerClasses { classes }
+                Attribute::InnerClasses {
+                    classes: classes.into_bump_slice(),
+                }
             }
 
             "EnclosingMethod" => {
@@ -462,7 +444,7 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
 
             "LineNumberTable" => {
                 let line_number_table_count = read::<u16>(reader)? as usize;
-                let mut line_number_table = Vec::with_capacity(line_number_table_count);
+                let mut line_number_table = Vec::with_capacity_in(line_number_table_count, arena);
                 for _ in (0..line_number_table_count) {
                     let entry = LineNumberEntry {
                         start_pc: read(reader)?,
@@ -472,12 +454,15 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
                     line_number_table.push(entry);
                 }
 
-                Attribute::LineNumberTable { line_number_table }
+                Attribute::LineNumberTable {
+                    line_number_table: line_number_table.into_bump_slice(),
+                }
             }
 
             "LocalVariableTable" => {
                 let local_variable_table_count: u16 = read(reader)?;
-                let mut local_variable_table = Vec::with_capacity(local_variable_table_count as _);
+                let mut local_variable_table =
+                    Vec::with_capacity_in(local_variable_table_count as _, arena);
 
                 for _ in (0..local_variable_table_count) {
                     let entry = LocalVariableEntry {
@@ -492,13 +477,13 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
                 }
 
                 Attribute::LocalVariableTable {
-                    local_variable_table,
+                    local_variable_table: local_variable_table.into_bump_slice(),
                 }
             }
             "LocalVariableTypeTable" => {
                 let local_variable_type_count: u16 = read(reader)?;
                 let mut local_variable_type_table =
-                    Vec::with_capacity(local_variable_type_count as _);
+                    Vec::with_capacity_in(local_variable_type_count as _, arena);
 
                 for _ in (0..local_variable_type_count) {
                     let entry = LocalVariableTypeEntry {
@@ -513,48 +498,43 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
                 }
 
                 Attribute::LocalVariableTypeTable {
-                    local_variable_type_table,
+                    local_variable_type_table: local_variable_type_table.into_bump_slice(),
                 }
             }
 
             "RuntimeVisibleAnnotations" => {
-                let bytes = read_bytes(
-                    attribute_len as usize,
-                    reader,
-                    buffer.as_slice(),
-                    &mut cursor,
-                )?;
+                let bytes = read_bytes(attribute_len as usize, reader, buffer, &mut cursor)?;
                 let annotation_count = read::<u16>(reader)? as usize;
-                let mut annotations = Vec::with_capacity(annotation_count);
+                let mut annotations = Vec::with_capacity_in(annotation_count, arena);
 
                 for _ in (0..annotation_count) {
-                    annotations.push(get_annotation(reader, constant_pool)?);
+                    annotations.push(get_annotation(reader, constant_pool, arena)?);
                 }
 
-                Attribute::RuntimeVisibleAnnotations { annotations, bytes }
+                Attribute::RuntimeVisibleAnnotations {
+                    annotations: annotations.into_bump_slice(),
+                    bytes,
+                }
             }
 
             "RuntimeInvisibleAnnotations" => {
                 let annotation_count = read::<u16>(reader)? as usize;
-                let mut annotations = Vec::with_capacity(annotation_count);
+                let mut annotations = Vec::with_capacity_in(annotation_count, arena);
 
                 for _ in (0..annotation_count) {
-                    annotations.push(get_annotation(reader, constant_pool)?);
+                    annotations.push(get_annotation(reader, constant_pool, arena)?);
                 }
 
-                Attribute::RuntimeInvisibleAnnotations { annotations }
+                Attribute::RuntimeInvisibleAnnotations {
+                    annotations: annotations.into_bump_slice(),
+                }
             }
 
             "AnnotationDefault" => {
-                let bytes = read_bytes(
-                    attribute_len as usize,
-                    reader,
-                    buffer.as_slice(),
-                    &mut cursor,
-                )?;
+                let bytes = read_bytes(attribute_len as usize, reader, buffer, &mut cursor)?;
 
                 Attribute::AnnotationDefault {
-                    element_value: get_element_value(reader, constant_pool)?,
+                    element_value: get_element_value(reader, constant_pool, arena)?,
                     bytes,
                 }
             }
@@ -565,28 +545,32 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
 
             "NestMembers" => {
                 let classes_count = read::<u16>(reader)? as usize;
-                let mut classes = Vec::with_capacity(classes_count);
+                let mut classes = Vec::with_capacity_in(classes_count, arena);
 
                 for _ in (0..classes_count) {
                     classes.push(read(reader)?);
                 }
 
-                Attribute::NestMembers { classes }
+                Attribute::NestMembers {
+                    classes: classes.into_bump_slice(),
+                }
             }
 
             "Record" => {
                 let component_count = read::<u16>(reader)? as usize;
-                let mut components = Vec::with_capacity(component_count);
+                let mut components = Vec::with_capacity_in(component_count, arena);
 
                 for _ in (0..component_count) {
                     components.push(RecordComponentInfo {
                         name_index: read(reader)?,
                         descriptor_index: read(reader)?,
-                        attributes: get_attributes(reader, constant_pool)?,
+                        attributes: get_attributes(reader, constant_pool, arena)?,
                     })
                 }
 
-                Attribute::Record { components }
+                Attribute::Record {
+                    components: components.into_bump_slice(),
+                }
             }
             _ => unimplemented!("Parsing for Attribute: {attribute_name} is not yet implemented"),
         };
@@ -637,36 +621,39 @@ impl From<u8> for FrameType {
     }
 }
 
-fn get_attributes<'at>(
+pub(in crate::classfile) fn get_attributes<'at, 'pool>(
     reader: &mut BufReader<impl Read>,
-    constant_pool: &'at ConstantPool,
-) -> Result<Vec<Attribute<'at>>, ClassfileError> {
+    constant_pool: &'pool ConstantPool<'pool>,
+    arena: &'at bumpalo::Bump,
+) -> Result<&'at [Attribute<'at>], ClassfileError> {
     let attributes_count: u16 = read(reader)?;
-    let mut attributes = Vec::with_capacity(attributes_count as usize);
+    let mut attributes =
+        bumpalo::collections::Vec::with_capacity_in(attributes_count as usize, arena);
 
-    for _ in (0..attributes_count) {
+    for _ in 0..attributes_count {
         let name_index: u16 = read(reader)?;
         let length = read::<u32>(reader)? as usize;
 
-        let buffer = vec![0u8; length];
-        let attribute = Attribute::try_from((buffer, constant_pool))?;
-        attributes.push(attribute)
+        let buffer = Vec::with_capacity_in(length, arena).into_bump_slice();
+        let attribute = Attribute::new(buffer, constant_pool, arena)?;
+        attributes.push(attribute);
     }
 
-    Ok(attributes)
+    Ok(attributes.into_bump_slice())
 }
 
-fn get_annotation(
+fn get_annotation<'at>(
     reader: &mut BufReader<impl Read>,
-    constant_pool: &ConstantPool,
-) -> Result<Annotation, ClassfileError> {
+    constant_pool: &'at ConstantPool,
+    arena: &'at bumpalo::Bump,
+) -> Result<Annotation<'at>, ClassfileError> {
     let type_index: u16 = read(reader)?;
     let num_element_pairs = read::<u16>(reader)? as usize;
-    let mut element_value_pairs = Vec::with_capacity(num_element_pairs);
+    let mut element_value_pairs = Vec::with_capacity_in(num_element_pairs, arena);
 
     for _ in (0..num_element_pairs) {
         let element_name_index: u16 = read(reader)?;
-        let element_value = get_element_value(reader, constant_pool)?;
+        let element_value = get_element_value(reader, constant_pool, arena)?;
 
         element_value_pairs.push(ElementValuePair {
             element_name_index,
@@ -676,14 +663,15 @@ fn get_annotation(
 
     Ok(Annotation {
         type_index,
-        element_value_pairs,
+        element_value_pairs: element_value_pairs.into_bump_slice(),
     })
 }
 
-fn get_element_value(
+fn get_element_value<'el>(
     reader: &mut BufReader<impl Read>,
-    constant_pool: &ConstantPool,
-) -> Result<ElementValue, ClassfileError> {
+    constant_pool: &'el ConstantPool,
+    arena: &'el bumpalo::Bump,
+) -> Result<ElementValue<'el>, ClassfileError> {
     let tag: u8 = read(reader)?;
 
     match tag {
@@ -707,18 +695,21 @@ fn get_element_value(
 
         b'@' => Ok(ElementValue::Annotation {
             tag,
-            annotation_value: get_annotation(reader, constant_pool)?,
+            annotation_value: get_annotation(reader, constant_pool, arena)?,
         }),
 
         b'[' => {
             let values_count = read::<u16>(reader)? as usize;
-            let mut values = Vec::with_capacity(values_count);
+            let mut values = Vec::with_capacity_in(values_count, arena);
 
             for _ in (0..values_count) {
-                values.push(get_element_value(reader, constant_pool)?);
+                values.push(get_element_value(reader, constant_pool, arena)?);
             }
 
-            Ok(ElementValue::ArrayValue { tag, values })
+            Ok(ElementValue::ArrayValue {
+                tag,
+                values: values.into_bump_slice(),
+            })
         }
 
         _ => unreachable!("ElementValue with tag: '{tag}' is not applicable"),

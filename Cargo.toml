@@ -6,4 +6,5 @@ edition = "2024"
 
 [dependencies]
 bitflags = "2.9.1"
+bumpalo = { version = "3.19.0", features = ["collections"] }
 thiserror = "2.0.12"
