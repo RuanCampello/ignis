@@ -33,7 +33,7 @@ pub(in crate::classfile) enum Attribute<'at> {
 
     /// JSVM (4.7.4)
     StackMapTable {
-        entries: Vec<StackMapEntry<'at>>,
+        entries: Vec<StackMapEntry>,
     },
 
     /// JSVM (4.7.5)
@@ -138,46 +138,33 @@ pub(in crate::classfile) struct ExceptionEntry {
     catch_type: u16,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub(in crate::classfile) enum StackMapEntry<'st> {
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub(in crate::classfile) enum StackMapEntry {
     SameFrame {
-        frame_type: FrameType,
         offset_delta: u16,
     },
-
     SameStack {
-        frame_type: FrameType,
         offset_delta: u16,
         stack: VerificationTypeInfo,
     },
-
     SameStackExtended {
-        frame_type: FrameType,
         offset_delta: u16,
         stack: VerificationTypeInfo,
     },
-
     ChopFrame {
-        frame_type: FrameType,
         offset_delta: u16,
     },
-
     SameFrameExtended {
-        frame_type: FrameType,
         offset_delta: u16,
     },
-
     AppendFrame {
-        frame_type: FrameType,
         offset_delta: u16,
-        locals: &'st [VerificationTypeInfo],
+        locals: Vec<VerificationTypeInfo>,
     },
-
     FullFrame {
-        frame_type: FrameType,
         offset_delta: u8,
-        locals: &'st [VerificationTypeInfo],
-        stack: &'st [VerificationTypeInfo],
+        locals: Vec<VerificationTypeInfo>,
+        stack: Vec<VerificationTypeInfo>,
     },
 }
 
@@ -324,7 +311,87 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
                 }
             }
 
-            "StackMapTable" => todo!(),
+            "StackMapTable" => {
+                let stack_map_table_entries = read::<u16>(reader)? as usize;
+                let mut entries = Vec::with_capacity(stack_map_table_entries);
+
+                for _ in (0..stack_map_table_entries) {
+                    let frame_byte: u8 = read(reader)?;
+                    let frame_type = FrameType::from(frame_byte);
+
+                    let entry = match frame_type {
+                        FrameType::SameFrame => {
+                            let offset_delta: u16 = read(reader)?;
+                            StackMapEntry::SameFrame { offset_delta }
+                        }
+
+                        FrameType::SameStack => {
+                            let offset_delta: u16 = read(reader)?;
+                            let stack = VerificationTypeInfo::try_from(&mut *reader)?;
+
+                            StackMapEntry::SameStack {
+                                offset_delta: offset_delta - 64,
+                                stack,
+                            }
+                        }
+
+                        FrameType::SameStackExtended => {
+                            let offset_delta: u16 = read(reader)?;
+                            let stack = VerificationTypeInfo::try_from(&mut *reader)?;
+
+                            StackMapEntry::SameStackExtended {
+                                offset_delta,
+                                stack,
+                            }
+                        }
+
+                        FrameType::ChopFrame { .. } => StackMapEntry::ChopFrame {
+                            offset_delta: read(reader)?,
+                        },
+
+                        FrameType::SameFrameExtended => StackMapEntry::SameFrameExtended {
+                            offset_delta: read(reader)?,
+                        },
+
+                        FrameType::AppendFrame { k } => {
+                            let offset_delta = read(reader)?;
+                            let mut locals = Vec::with_capacity(k as usize);
+                            for _ in (0..k) {
+                                locals.push(VerificationTypeInfo::try_from(&mut *reader)?);
+                            }
+
+                            StackMapEntry::AppendFrame {
+                                offset_delta,
+                                locals,
+                            }
+                        }
+
+                        FrameType::FullFrame => {
+                            let offset_delta = read(reader)?;
+
+                            let locals_count = read::<u16>(reader)? as usize;
+                            let mut locals = Vec::with_capacity(locals_count);
+
+                            for _ in (0..locals_count) {
+                                locals.push(VerificationTypeInfo::try_from(&mut *reader)?);
+                            }
+
+                            let stack_count = read::<u16>(reader)? as usize;
+                            let mut stack = Vec::with_capacity(stack_count);
+
+                            StackMapEntry::FullFrame {
+                                offset_delta,
+                                locals,
+                                stack,
+                            }
+                        }
+                    };
+
+                    entries.push(entry)
+                }
+
+                Attribute::StackMapTable { entries }
+            }
 
             "Exceptions" => {
                 let exceptions_count: u16 = read(reader)?;
@@ -481,6 +548,33 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
         };
 
         todo!()
+    }
+}
+
+impl<R: Read> TryFrom<&mut BufReader<R>> for VerificationTypeInfo {
+    type Error = ClassfileError;
+
+    fn try_from(reader: &mut BufReader<R>) -> Result<Self, Self::Error> {
+        let tag: u8 = read(reader)?;
+
+        match tag {
+            0 => Ok(VerificationTypeInfo::TopVariable),
+            1 => Ok(VerificationTypeInfo::IntegerVariable),
+            2 => Ok(VerificationTypeInfo::FloatVariable),
+            3 => Ok(VerificationTypeInfo::DoubleVariable),
+            4 => Ok(VerificationTypeInfo::LongVariable),
+            5 => Ok(VerificationTypeInfo::NullVariable),
+            6 => Ok(VerificationTypeInfo::UninitializedThisVariable),
+            7 => {
+                let cpool_index = read::<u16>(reader)?;
+                Ok(VerificationTypeInfo::ObjectVariable { cpool_index })
+            }
+            8 => {
+                let offset = read::<u16>(reader)?;
+                Ok(VerificationTypeInfo::UninitializedVariable { offset })
+            }
+            _ => unreachable!("VerificationTypeInfo for tag: {tag} is not defined"),
+        }
     }
 }
 
