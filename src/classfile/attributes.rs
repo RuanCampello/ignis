@@ -98,9 +98,17 @@ pub(in crate::classfile) enum Attribute<'at> {
     Module,
     ModulePackages,
     ModuleMainClass,
-    NestHost,
-    NestMembers,
-    Record,
+
+    NestHost {
+        host_class_index: u16,
+    },
+    NestMembers {
+        classes: Vec<u16>,
+    },
+
+    Record {
+        components: Vec<RecordComponentInfo<'at>>,
+    },
     PermittedSubclasses,
 }
 
@@ -210,6 +218,13 @@ pub(in crate::classfile) struct Annotation {
 pub(in crate::classfile) struct ElementValuePair {
     element_name_index: u16,
     element_value: ElementValue,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub(in crate::classfile) struct RecordComponentInfo<'at> {
+    name_index: u16,
+    descriptor_index: u16,
+    attributes: Vec<Attribute<'at>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -544,7 +559,36 @@ impl<'at> TryFrom<(Vec<u8>, &'at ConstantPool<'_>)> for Attribute<'at> {
                 }
             }
 
-            _ => todo!(),
+            "NestHost" => Attribute::NestHost {
+                host_class_index: read(reader)?,
+            },
+
+            "NestMembers" => {
+                let classes_count = read::<u16>(reader)? as usize;
+                let mut classes = Vec::with_capacity(classes_count);
+
+                for _ in (0..classes_count) {
+                    classes.push(read(reader)?);
+                }
+
+                Attribute::NestMembers { classes }
+            }
+
+            "Record" => {
+                let component_count = read::<u16>(reader)? as usize;
+                let mut components = Vec::with_capacity(component_count);
+
+                for _ in (0..component_count) {
+                    components.push(RecordComponentInfo {
+                        name_index: read(reader)?,
+                        descriptor_index: read(reader)?,
+                        attributes: get_attributes(reader, constant_pool)?,
+                    })
+                }
+
+                Attribute::Record { components }
+            }
+            _ => unimplemented!("Parsing for Attribute: {attribute_name} is not yet implemented"),
         };
 
         todo!()
