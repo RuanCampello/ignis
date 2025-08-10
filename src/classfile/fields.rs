@@ -2,7 +2,7 @@
 //! A `field_info` structure is used to represent a field (instance variable or class variable) in a Java class.
 
 use super::attributes::Attribute;
-use crate::classfile::{ConstantPool, get_attributes, read};
+use crate::classfile::{ClassfileError, ConstantPool, get_attributes, read};
 use bitflags::bitflags;
 use bumpalo::{Bump, collections::Vec};
 use std::io::{BufReader, Read};
@@ -41,20 +41,22 @@ bitflags! {
     }
 }
 
-fn parse_fields<'c>(
+pub(in crate::classfile) fn parse_fields<'c, 'pool>(
     reader: &mut BufReader<impl Read>,
-    count: usize,
-    constant_pool: &'c ConstantPool<'c>,
+    constant_pool: &'pool ConstantPool<'pool>,
     arena: &'c Bump,
-) -> Result<&'c [crate::classfile::fields::Field<'c>], crate::classfile::ClassfileError> {
-    let mut fields_vec = Vec::with_capacity_in(count, arena);
-    for _ in 0..count {
-        fields_vec.push(crate::classfile::fields::Field {
-            access_flags: crate::classfile::fields::FieldFlags::from_bits_truncate(read(reader)?),
+) -> Result<&'c [Field<'c>], ClassfileError> {
+    let fields_count = read::<u16>(reader)? as usize;
+    let mut fields_vec = Vec::with_capacity_in(fields_count, arena);
+
+    for _ in (0..fields_count) {
+        fields_vec.push(Field {
+            access_flags: FieldFlags::from_bits_truncate(read(reader)?),
             name_index: read(reader)?,
             descriptor_index: read(reader)?,
             attributes: get_attributes(reader, constant_pool, arena)?,
         });
     }
+
     Ok(fields_vec.into_bump_slice())
 }

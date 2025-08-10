@@ -14,6 +14,11 @@ mod constant_pool;
 mod fields;
 mod methods;
 
+use crate::classfile::{
+    fields::parse_fields,
+    methods::{Method, parse_methods},
+};
+
 use self::{attributes::get_attributes, fields::FieldFlags};
 use bitflags::bitflags;
 use bumpalo::{Bump, collections::Vec};
@@ -24,14 +29,15 @@ use thiserror::Error;
 
 /// Classfile structure defined by JVMS (4.1)
 #[derive(Debug, PartialEq, Clone)]
-pub struct Classfile<'p> {
+pub struct Classfile<'cf> {
     version: Version,
-    constant_pool: ConstantPool<'p>,
+    constant_pool: ConstantPool<'cf>,
     access_flags: AccessFlags,
     this_class: u16,
     super_class: u16,
-    interfaces: &'p [u16],
-    fields: &'p [Field<'p>],
+    interfaces: &'cf [u16],
+    fields: &'cf [Field<'cf>],
+    methods: &'cf [Method<'cf>],
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -133,17 +139,8 @@ impl<'c> Classfile<'c> {
         }
         let interfaces: &'c [u16] = interfaces.into_bump_slice();
 
-        let mut fields = Vec::with_capacity_in(read::<u16>(&mut reader)? as usize, arena);
-        let fields_count = read::<u16>(&mut reader)? as usize;
-        for _ in (0..fields_count) {
-            fields.push(Field {
-                access_flags: FieldFlags::from_bits_truncate(read(&mut reader)?),
-                name_index: read(&mut reader)?,
-                descriptor_index: read(&mut reader)?,
-                attributes: get_attributes(&mut reader, &constant_pool, arena)?,
-            })
-        }
-        let fields: &'c [Field<'c>] = fields.into_bump_slice();
+        let fields = parse_fields(&mut reader, &constant_pool, arena)?;
+        let methods = parse_methods(&mut reader, &constant_pool, arena)?;
 
         Ok(Classfile {
             version,
@@ -153,6 +150,7 @@ impl<'c> Classfile<'c> {
             super_class,
             interfaces,
             fields,
+            methods,
         })
     }
 
