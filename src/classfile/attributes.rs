@@ -4,7 +4,7 @@
 use super::{ClassfileError, constant_pool::ConstantPool};
 use crate::classfile::{
     constant_pool::{ConstantPoolEntry, ConstantPoolError},
-    read, read_bytes,
+    read,
 };
 use bitflags::bitflags;
 use bumpalo::collections::Vec;
@@ -259,10 +259,8 @@ impl<'at> Attribute<'at> {
     ) -> Result<Self, ClassfileError>
     {
         let reader = &mut BufReader::new(buffer);
-        let mut cursor = 0usize;
 
         let attribute_name_index: u16 = read(reader)?;
-        cursor += 2; // u16 is 2 bytes
         
         let attribute_name: &str =
             constant_pool.get_with(attribute_name_index, |entry| match entry {
@@ -273,7 +271,6 @@ impl<'at> Attribute<'at> {
             })?;
 
         let attribute_len: u32 = read(reader)?;
-        cursor += 4; // u32 is 4 bytes
         
         let attribute = match attribute_name {
             "ConstantValue" => Attribute::ConstantValue {
@@ -282,22 +279,15 @@ impl<'at> Attribute<'at> {
 
             "Code" => {
                 let max_stack: u16 = read(reader)?;
-                cursor += 2;
-                
                 let max_locals: u16 = read(reader)?;
-                cursor += 2;
-                
                 let code_len: u32 = read(reader)?;
-                cursor += 4;
                 
                 // Read code bytes directly from the reader into arena-allocated memory
                 let mut code_bytes = bumpalo::vec![in arena; 0; code_len as usize];
                 reader.read_exact(&mut code_bytes)?;
                 let code = code_bytes.into_bump_slice();
-                cursor += code_len as usize;
 
                 let expection_table_len: u16 = read(reader)?;
-                cursor += 2;
                 
                 let mut exception_table =
                     Vec::with_capacity_in(expection_table_len as usize, arena);
@@ -308,7 +298,6 @@ impl<'at> Attribute<'at> {
                         handler_pc: read::<u16>(reader)?,
                         catch_type: read::<u16>(reader)?,
                     });
-                    cursor += 8; // 4 * u16 = 8 bytes
                 }
 
                 let attributes = get_attributes(reader, constant_pool, arena)?;
@@ -521,12 +510,18 @@ impl<'at> Attribute<'at> {
             }
 
             "RuntimeVisibleAnnotations" => {
-                let bytes = read_bytes(attribute_len as usize, reader, buffer, &mut cursor)?;
-                let annotation_count = read::<u16>(reader)? as usize;
+                // Read the entire attribute data into arena memory first
+                let mut attribute_bytes = bumpalo::vec![in arena; 0; attribute_len as usize];
+                reader.read_exact(&mut attribute_bytes)?;
+                let bytes = attribute_bytes.into_bump_slice();
+                
+                // Create a new reader for the attribute data to parse annotations
+                let mut attr_reader = BufReader::new(&bytes[..]);
+                let annotation_count = read::<u16>(&mut attr_reader)? as usize;
                 let mut annotations = Vec::with_capacity_in(annotation_count, arena);
 
                 for _ in (0..annotation_count) {
-                    annotations.push(get_annotation(reader, constant_pool, arena)?);
+                    annotations.push(get_annotation(&mut attr_reader, constant_pool, arena)?);
                 }
 
                 Attribute::RuntimeVisibleAnnotations {
@@ -549,10 +544,16 @@ impl<'at> Attribute<'at> {
             }
 
             "AnnotationDefault" => {
-                let bytes = read_bytes(attribute_len as usize, reader, buffer, &mut cursor)?;
+                // Read the entire attribute data into arena memory first
+                let mut attribute_bytes = bumpalo::vec![in arena; 0; attribute_len as usize];
+                reader.read_exact(&mut attribute_bytes)?;
+                let bytes = attribute_bytes.into_bump_slice();
+                
+                // Create a new reader for the attribute data to parse element value
+                let mut attr_reader = BufReader::new(&bytes[..]);
 
                 Attribute::AnnotationDefault {
-                    element_value: get_element_value(reader, constant_pool, arena)?,
+                    element_value: get_element_value(&mut attr_reader, constant_pool, arena)?,
                     bytes,
                 }
             }
