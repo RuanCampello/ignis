@@ -165,15 +165,21 @@ impl<'c> Classfile<'c> {
         self.access_flags.contains(AccessFlags::ABSTRACT)
     }
 
-    pub fn get_class_name(&self, index: u16) -> Option<&str> {
-        match self.constant_pool.get_classname(index) {
-            Ok(string) => Some(string),
-            _ => None,
-        }
+    pub fn version(&self) -> (u16, u16) {
+        (self.version.major, self.version.minor)
+    }
+
+    pub fn class_name(&self) -> Option<&str> {
+        self.constant_pool.get_classname(self.this_class).ok()
+    }
+
+    pub fn super_class(&self) -> Option<&str> {
+        self.constant_pool.get_classname(self.super_class).ok()
     }
 
     pub fn field_names(&'c self, arena: &'c Bump) -> Result<Vec<&'c str>, ConstantPoolError> {
         use self::constant_pool::ConstantPoolEntry;
+
         let mut names = bumpalo::collections::Vec::new_in(arena);
 
         for f in self.fields.iter() {
