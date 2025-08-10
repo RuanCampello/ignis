@@ -219,6 +219,18 @@ impl<'c> Classfile<'c> {
 
         Ok(methods)
     }
+
+    pub fn interface_names<'a>(
+        &self,
+        arena: &'a bumpalo::Bump,
+    ) -> Result<&'a [&'c str], ConstantPoolError> {
+        let mut names = bumpalo::collections::Vec::new_in(arena);
+        for &idx in self.interfaces {
+            let name = self.constant_pool.get_classname(idx)?;
+            names.push(name);
+        }
+        Ok(names.into_bump_slice())
+    }
 }
 
 impl Version {
