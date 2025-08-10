@@ -262,6 +262,8 @@ impl<'at> Attribute<'at> {
         let mut cursor = 0usize;
 
         let attribute_name_index: u16 = read(reader)?;
+        cursor += 2; // u16 is 2 bytes
+        
         let attribute_name: &str =
             constant_pool.get_with(attribute_name_index, |entry| match entry {
                 ConstantPoolEntry::Utf8(utf8) => Ok(utf8),
@@ -271,6 +273,8 @@ impl<'at> Attribute<'at> {
             })?;
 
         let attribute_len: u32 = read(reader)?;
+        cursor += 4; // u32 is 4 bytes
+        
         let attribute = match attribute_name {
             "ConstantValue" => Attribute::ConstantValue {
                 constantvalue_index: read(reader)?,
@@ -278,11 +282,23 @@ impl<'at> Attribute<'at> {
 
             "Code" => {
                 let max_stack: u16 = read(reader)?;
+                cursor += 2;
+                
                 let max_locals: u16 = read(reader)?;
+                cursor += 2;
+                
                 let code_len: u32 = read(reader)?;
-                let code = read_bytes(code_len as usize, reader, buffer, &mut cursor)?;
+                cursor += 4;
+                
+                // Read code bytes directly from the reader into arena-allocated memory
+                let mut code_bytes = bumpalo::vec![in arena; 0; code_len as usize];
+                reader.read_exact(&mut code_bytes)?;
+                let code = code_bytes.into_bump_slice();
+                cursor += code_len as usize;
 
                 let expection_table_len: u16 = read(reader)?;
+                cursor += 2;
+                
                 let mut exception_table =
                     Vec::with_capacity_in(expection_table_len as usize, arena);
                 for _ in (0..expection_table_len) {
@@ -291,7 +307,8 @@ impl<'at> Attribute<'at> {
                         end_pc: read::<u16>(reader)?,
                         handler_pc: read::<u16>(reader)?,
                         catch_type: read::<u16>(reader)?,
-                    })
+                    });
+                    cursor += 8; // 4 * u16 = 8 bytes
                 }
 
                 let attributes = get_attributes(reader, constant_pool, arena)?;
@@ -636,7 +653,21 @@ pub(in crate::classfile) fn get_attributes<'at>(
         let name_index: u16 = read(reader)?;
         let length = read::<u32>(reader)? as usize;
 
-        let buffer = Vec::with_capacity_in(length, arena).into_bump_slice();
+        // Create buffer that includes the name_index and length, plus the attribute data
+        let total_length = 2 + 4 + length; // 2 bytes for name_index, 4 bytes for length, + data
+        let mut buffer = bumpalo::vec![in arena; 0; total_length];
+        
+        // Write name_index and length into the buffer
+        buffer[0..2].copy_from_slice(&name_index.to_be_bytes());
+        buffer[2..6].copy_from_slice(&(length as u32).to_be_bytes());
+        
+        // Read the actual attribute data
+        let mut attribute_data = vec![0; length];
+        reader.read_exact(&mut attribute_data)?;
+        buffer[6..].copy_from_slice(&attribute_data);
+        
+        let buffer = buffer.into_bump_slice();
+        
         let attribute = Attribute::new(buffer, constant_pool, arena)?;
         attributes.push(attribute);
     }

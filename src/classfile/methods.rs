@@ -53,11 +53,16 @@ pub(in crate::classfile) fn parse_methods<'m>(
     let mut methods = Vec::with_capacity_in(methods_count, arena);
 
     for _ in (0..methods_count) {
+        let access_flags = MethodFlags::from_bits_truncate(read(reader)?);
+        let name_index = read(reader)?;
+        let descriptor_index = read(reader)?;
+        let attributes = get_attributes(reader, constant_pool, arena)?;
+        
         let entry = Method {
-            access_flags: MethodFlags::from_bits_truncate(read(reader)?),
-            name_index: read(reader)?,
-            descriptor_index: read(reader)?,
-            attributes: get_attributes(reader, constant_pool, arena)?,
+            access_flags,
+            name_index,
+            descriptor_index,
+            attributes,
         };
 
         methods.push(entry)
