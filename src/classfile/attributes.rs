@@ -252,11 +252,14 @@ impl<'at> AsRef<Attribute<'at>> for Attribute<'at> {
 }
 
 impl<'at> Attribute<'at> {
-    fn new(
-        buffer: &[u8],
-        constant_pool: &ConstantPool,
+    fn new<'pool>(
+        buffer: &'at [u8],
+        constant_pool: &'pool ConstantPool,
         arena: &'at bumpalo::Bump,
-    ) -> Result<Self, ClassfileError> {
+    ) -> Result<Self, ClassfileError>
+    where
+        'pool: 'at,
+    {
         let reader = &mut BufReader::new(buffer);
         let mut cursor = 0usize;
 
@@ -575,7 +578,7 @@ impl<'at> Attribute<'at> {
             _ => unimplemented!("Parsing for Attribute: {attribute_name} is not yet implemented"),
         };
 
-        todo!()
+        Ok(attribute)
     }
 }
 
@@ -625,7 +628,10 @@ pub(in crate::classfile) fn get_attributes<'at, 'pool>(
     reader: &mut BufReader<impl Read>,
     constant_pool: &'pool ConstantPool<'pool>,
     arena: &'at bumpalo::Bump,
-) -> Result<&'at [Attribute<'at>], ClassfileError> {
+) -> Result<&'at [Attribute<'at>], ClassfileError>
+where
+    'pool: 'at,
+{
     let attributes_count: u16 = read(reader)?;
     let mut attributes =
         bumpalo::collections::Vec::with_capacity_in(attributes_count as usize, arena);

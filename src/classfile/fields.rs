@@ -45,17 +45,22 @@ pub(in crate::classfile) fn parse_fields<'c, 'pool>(
     reader: &mut BufReader<impl Read>,
     constant_pool: &'pool ConstantPool<'pool>,
     arena: &'c Bump,
-) -> Result<&'c [Field<'c>], ClassfileError> {
+) -> Result<&'c [Field<'c>], ClassfileError>
+where
+    'pool: 'c,
+{
     let fields_count = read::<u16>(reader)? as usize;
     let mut fields_vec = Vec::with_capacity_in(fields_count, arena);
 
     for _ in (0..fields_count) {
-        fields_vec.push(Field {
+        let entry = Field {
             access_flags: FieldFlags::from_bits_truncate(read(reader)?),
             name_index: read(reader)?,
             descriptor_index: read(reader)?,
             attributes: get_attributes(reader, constant_pool, arena)?,
-        });
+        };
+
+        fields_vec.push(entry);
     }
 
     Ok(fields_vec.into_bump_slice())

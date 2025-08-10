@@ -9,7 +9,6 @@ pub(in crate::classfile) struct Method<'m> {
     access_flags: MethodFlags,
     name_index: u16,
     descriptor_index: u16,
-    attributes_count: u16,
     attributes: &'m [Attribute<'m>],
 }
 
@@ -48,7 +47,10 @@ pub(in crate::classfile) fn parse_methods<'m, 'pool>(
     reader: &mut BufReader<impl Read>,
     constant_pool: &'pool ConstantPool<'pool>,
     arena: &'m Bump,
-) -> Result<&'m [Method<'m>], ClassfileError> {
+) -> Result<&'m [Method<'m>], ClassfileError>
+where
+    'pool: 'm,
+{
     let methods_count = read::<u16>(reader)? as usize;
     let mut methods = Vec::with_capacity_in(methods_count, arena);
 
@@ -57,7 +59,6 @@ pub(in crate::classfile) fn parse_methods<'m, 'pool>(
             access_flags: MethodFlags::from_bits_truncate(read(reader)?),
             name_index: read(reader)?,
             descriptor_index: read(reader)?,
-            attributes_count: read(reader)?,
             attributes: get_attributes(reader, constant_pool, arena)?,
         };
 

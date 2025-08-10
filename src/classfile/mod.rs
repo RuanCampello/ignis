@@ -110,7 +110,7 @@ macro_rules! impl_from_be_bytes {
 impl_from_be_bytes!(u8, u16, u32, u64, i8, i16, i32, i64, f32, f64);
 
 impl<'c> Classfile<'c> {
-    pub fn new<'b>(buff: &'b [u8], arena: &'c Bump) -> Result<Self, ClassfileError>
+    pub fn new<'b>(buff: &'b [u8], arena: &'c Bump) -> Result<Classfile<'c>, ClassfileError>
     where
         'b: 'c,
     {
@@ -133,8 +133,9 @@ impl<'c> Classfile<'c> {
         let this_class: u16 = read(&mut reader)?;
         let super_class: u16 = read(&mut reader)?;
 
-        let mut interfaces = Vec::with_capacity_in(read::<u16>(&mut reader)? as usize, arena);
-        for _ in (0..interfaces.len()) {
+        let interfaces_count = read::<u16>(&mut reader)? as usize;
+        let mut interfaces = Vec::with_capacity_in(interfaces_count, arena);
+        for _ in (0..interfaces_count) {
             interfaces.push(read::<u16>(&mut reader)?);
         }
         let interfaces: &'c [u16] = interfaces.into_bump_slice();
