@@ -8,7 +8,7 @@ use bumpalo::{Bump, collections::Vec};
 use std::io::{BufReader, Read};
 
 /// `field_info` defined by JVSM 4.5.
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub(in crate::classfile) struct Field<'at> {
     pub access_flags: FieldFlags,
     pub name_index: u16,

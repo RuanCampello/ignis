@@ -12,6 +12,7 @@
 mod attributes;
 mod constant_pool;
 mod fields;
+mod methods;
 
 use self::{attributes::get_attributes, fields::FieldFlags};
 use bitflags::bitflags;
