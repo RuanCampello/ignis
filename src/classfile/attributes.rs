@@ -254,12 +254,9 @@ impl<'at> AsRef<Attribute<'at>> for Attribute<'at> {
 impl<'at> Attribute<'at> {
     fn new<'pool>(
         buffer: &'at [u8],
-        constant_pool: &'pool ConstantPool,
+        constant_pool: &'at ConstantPool<'at>,
         arena: &'at bumpalo::Bump,
-    ) -> Result<Self, ClassfileError>
-    where
-        'pool: 'at,
-    {
+    ) -> Result<Self, ClassfileError> {
         let reader = &mut BufReader::new(buffer);
         let mut cursor = 0usize;
 
@@ -624,14 +621,11 @@ impl From<u8> for FrameType {
     }
 }
 
-pub(in crate::classfile) fn get_attributes<'at, 'pool>(
+pub(in crate::classfile) fn get_attributes<'at>(
     reader: &mut BufReader<impl Read>,
-    constant_pool: &'pool ConstantPool<'pool>,
+    constant_pool: &'at ConstantPool<'at>,
     arena: &'at bumpalo::Bump,
-) -> Result<&'at [Attribute<'at>], ClassfileError>
-where
-    'pool: 'at,
-{
+) -> Result<&'at [Attribute<'at>], ClassfileError> {
     let attributes_count: u16 = read(reader)?;
     let mut attributes =
         bumpalo::collections::Vec::with_capacity_in(attributes_count as usize, arena);
@@ -650,7 +644,7 @@ where
 
 fn get_annotation<'at>(
     reader: &mut BufReader<impl Read>,
-    constant_pool: &'at ConstantPool,
+    constant_pool: &'at ConstantPool<'at>,
     arena: &'at bumpalo::Bump,
 ) -> Result<Annotation<'at>, ClassfileError> {
     let type_index: u16 = read(reader)?;
