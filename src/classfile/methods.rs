@@ -43,13 +43,11 @@ bitflags! {
     }
 }
 
-pub(in crate::classfile) fn parse_methods<'m, 'pool>(
+pub(in crate::classfile) fn parse_methods<'m>(
     reader: &mut BufReader<impl Read>,
-    constant_pool: &'pool ConstantPool<'pool>,
+    constant_pool: &'m ConstantPool<'m>,
     arena: &'m Bump,
 ) -> Result<&'m [Method<'m>], ClassfileError>
-where
-    'pool: 'm,
 {
     let methods_count = read::<u16>(reader)? as usize;
     let mut methods = Vec::with_capacity_in(methods_count, arena);

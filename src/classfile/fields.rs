@@ -41,13 +41,11 @@ bitflags! {
     }
 }
 
-pub(in crate::classfile) fn parse_fields<'c, 'pool>(
+pub(in crate::classfile) fn parse_fields<'c>(
     reader: &mut BufReader<impl Read>,
-    constant_pool: &'pool ConstantPool<'pool>,
+    constant_pool: &'c ConstantPool<'c>,
     arena: &'c Bump,
 ) -> Result<&'c [Field<'c>], ClassfileError>
-where
-    'pool: 'c,
 {
     let fields_count = read::<u16>(reader)? as usize;
     let mut fields_vec = Vec::with_capacity_in(fields_count, arena);
