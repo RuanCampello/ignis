@@ -214,15 +214,3 @@ where
 
     Ok(T::from_be_bytes(bytes))
 }
-
-pub(self) fn read_bytes<'b>(
-    size: usize,
-    reader: &mut impl Read,
-    buffer: &'b [u8],
-    pos: &mut usize,
-) -> Result<&'b [u8], ClassfileError> {
-    let start = *pos;
-    let end = start + size;
-    *pos = end;
-    Ok(&buffer[start..end])
-}

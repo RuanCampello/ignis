@@ -4,7 +4,7 @@
 use super::{ClassfileError, constant_pool::ConstantPool};
 use crate::classfile::{
     constant_pool::{ConstantPoolEntry, ConstantPoolError},
-    read, read_bytes,
+    read,
 };
 use bitflags::bitflags;
 use bumpalo::collections::Vec;
@@ -253,23 +253,17 @@ impl<'at> AsRef<Attribute<'at>> for Attribute<'at> {
 
 impl<'at> Attribute<'at> {
     fn new<'pool>(
-        buffer: &'at [u8],
+        reader: &mut BufReader<impl Read>,
+        name_index: u16,
+        length: u32,
         constant_pool: &'at ConstantPool<'at>,
         arena: &'at bumpalo::Bump,
     ) -> Result<Self, ClassfileError> {
-        let reader = &mut BufReader::new(buffer);
-        let mut cursor = 0usize;
+        let attribute_name: &str = constant_pool.get_with(name_index, |entry| match entry {
+            ConstantPoolEntry::Utf8(utf8) => Ok(utf8),
+            _ => Err(ConstantPoolError::InvalidAttr(name_index as usize)),
+        })?;
 
-        let attribute_name_index: u16 = read(reader)?;
-        let attribute_name: &str =
-            constant_pool.get_with(attribute_name_index, |entry| match entry {
-                ConstantPoolEntry::Utf8(utf8) => Ok(utf8),
-                _ => Err(ConstantPoolError::InvalidAttr(
-                    attribute_name_index as usize,
-                )),
-            })?;
-
-        let attribute_len: u32 = read(reader)?;
         let attribute = match attribute_name {
             "ConstantValue" => Attribute::ConstantValue {
                 constantvalue_index: read(reader)?,
@@ -279,7 +273,10 @@ impl<'at> Attribute<'at> {
                 let max_stack: u16 = read(reader)?;
                 let max_locals: u16 = read(reader)?;
                 let code_len: u32 = read(reader)?;
-                let code = read_bytes(code_len as usize, reader, buffer, &mut cursor)?;
+
+                let mut code = bumpalo::vec![in arena; 0; code_len as usize];
+                reader.read_exact(&mut code)?;
+                let code = code.into_bump_slice();
 
                 let expection_table_len: u16 = read(reader)?;
                 let mut exception_table =
@@ -290,7 +287,7 @@ impl<'at> Attribute<'at> {
                         end_pc: read::<u16>(reader)?,
                         handler_pc: read::<u16>(reader)?,
                         catch_type: read::<u16>(reader)?,
-                    })
+                    });
                 }
 
                 let attributes = get_attributes(reader, constant_pool, arena)?;
@@ -503,12 +500,16 @@ impl<'at> Attribute<'at> {
             }
 
             "RuntimeVisibleAnnotations" => {
-                let bytes = read_bytes(attribute_len as usize, reader, buffer, &mut cursor)?;
-                let annotation_count = read::<u16>(reader)? as usize;
+                let mut bytes = bumpalo::vec![in arena; 0; length as usize];
+                reader.read_exact(&mut bytes)?;
+                let bytes = bytes.into_bump_slice();
+                let mut reader = BufReader::new(&bytes[..]);
+
+                let annotation_count = read::<u16>(&mut reader)? as usize;
                 let mut annotations = Vec::with_capacity_in(annotation_count, arena);
 
                 for _ in (0..annotation_count) {
-                    annotations.push(get_annotation(reader, constant_pool, arena)?);
+                    annotations.push(get_annotation(&mut reader, constant_pool, arena)?);
                 }
 
                 Attribute::RuntimeVisibleAnnotations {
@@ -531,10 +532,13 @@ impl<'at> Attribute<'at> {
             }
 
             "AnnotationDefault" => {
-                let bytes = read_bytes(attribute_len as usize, reader, buffer, &mut cursor)?;
+                let mut bytes = bumpalo::vec![in arena; 0; length as usize];
+                reader.read_exact(&mut bytes)?;
+                let bytes = bytes.into_bump_slice();
+                let mut reader = BufReader::new(&bytes[..]);
 
                 Attribute::AnnotationDefault {
-                    element_value: get_element_value(reader, constant_pool, arena)?,
+                    element_value: get_element_value(&mut reader, constant_pool, arena)?,
                     bytes,
                 }
             }
@@ -632,16 +636,14 @@ pub(in crate::classfile) fn get_attributes<'at>(
 
     for _ in 0..attributes_count {
         let name_index: u16 = read(reader)?;
-        let length = read::<u32>(reader)? as usize;
+        let length = read::<u32>(reader)?;
 
-        let buffer = Vec::with_capacity_in(length, arena).into_bump_slice();
-        let attribute = Attribute::new(buffer, constant_pool, arena)?;
+        let attribute = Attribute::new(reader, name_index, length, constant_pool, arena)?;
         attributes.push(attribute);
     }
 
     Ok(attributes.into_bump_slice())
 }
-
 fn get_annotation<'at>(
     reader: &mut BufReader<impl Read>,
     constant_pool: &'at ConstantPool<'at>,

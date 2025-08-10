@@ -16,6 +16,7 @@ fn person_class() -> Result<()> {
 
     let fields = classfile.field_names(&arena)?;
     assert_eq!(fields, bumpalo::vec![in &arena; "name", "age"]);
+    print!("{classfile:#?}\n");
 
     Ok(())
 }
