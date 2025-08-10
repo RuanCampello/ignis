@@ -74,10 +74,11 @@ impl<'c> ConstantPool<'c> {
         };
 
         let mut pool = ConstantPool::with_capacity(count, arena);
-
         let mut idx = 0;
+
         while idx < count {
             let tag = read::<u8>(reader)?;
+            print!("tag: {tag} \n");
             let entry = match tag {
                 1 => todo!(),
                 3 => ConstantPoolEntry::Integer(read::<i32>(reader)?),
@@ -110,7 +111,7 @@ impl<'c> ConstantPool<'c> {
                 16 => ConstantPoolEntry::MethodType(read::<u16>(reader)?),
                 19 => ConstantPoolEntry::Module(read::<u16>(reader)?),
                 20 => ConstantPoolEntry::Package(read::<u16>(reader)?),
-                _ => unreachable!(),
+                _ => unreachable!("ConstantPoolEntry for tag: {tag} is not defined"),
             };
 
             pool.push(entry);

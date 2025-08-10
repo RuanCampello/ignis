@@ -1,4 +1,3 @@
 #![allow(unused)]
 
-mod classfile;
-pub use classfile::Classfile;
+pub mod classfile;

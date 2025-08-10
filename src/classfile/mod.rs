@@ -39,7 +39,7 @@ pub(crate) struct Version {
 }
 
 #[derive(Error, Debug)]
-pub(crate) enum ClassfileError {
+pub enum ClassfileError {
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error("Invalid classfile: magic number doesn't match.")]
@@ -101,7 +101,7 @@ macro_rules! impl_from_be_bytes {
 impl_from_be_bytes!(u8, u16, u32, u64, i8, i16, i32, i64, f32, f64);
 
 impl<'c> Classfile<'c> {
-    fn new<'b>(buff: &'b [u8], arena: &'c Bump) -> Result<Self, ClassfileError>
+    pub fn new<'b>(buff: &'b [u8], arena: &'c Bump) -> Result<Self, ClassfileError>
     where
         'b: 'c,
     {
