@@ -7,6 +7,8 @@
 //!
 //! The output of this module is a structured `ClassFile` representation, which is used by the class loader and interpreter.
 
+#![allow(elided_named_lifetimes)]
+
 mod attributes;
 mod constant_pool;
 mod fields;
@@ -119,7 +121,7 @@ impl<'c> Classfile<'c> {
         }
         let version = Version::new(major, minor);
 
-        let constant_pool = ConstantPool::new(&mut Cursor::new(buff), arena)?;
+        let constant_pool = ConstantPool::new(&mut reader, arena)?;
         let access_flags = AccessFlags::from_bits_truncate(read::<u16>(&mut reader)?);
         let this_class: u16 = read(&mut reader)?;
         let super_class: u16 = read(&mut reader)?;

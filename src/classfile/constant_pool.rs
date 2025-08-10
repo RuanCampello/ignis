@@ -7,7 +7,7 @@
 
 use bumpalo::{Bump, collections::Vec};
 use core::fmt::{Display, Formatter};
-use std::io::{Cursor, Read, Seek, SeekFrom};
+use std::io::{BufReader, Cursor, Read, Seek, SeekFrom};
 use thiserror::Error;
 
 use crate::classfile::ClassfileError;
@@ -62,18 +62,15 @@ pub enum ConstantPoolError {
 
 impl<'c> ConstantPool<'c> {
     pub fn new(
-        reader: &mut Cursor<&'c [u8]>,
+        reader: &mut BufReader<&'c [u8]>,
         arena: &'c bumpalo::Bump,
     ) -> Result<Self, ClassfileError> {
         use crate::classfile::read;
 
-        let count = {
-            let mut buff = [0u8; 2];
-            reader.read_exact(&mut buff)?;
-            u16::from_be_bytes(buff) as usize
-        };
+        let count: u16 = read(reader)?;
 
-        let mut pool = ConstantPool::with_capacity(count, arena);
+        print!("count: {count}\n");
+        let mut pool = ConstantPool::with_capacity(count as usize, arena);
         let mut idx = 0;
 
         while idx < count {
