@@ -77,7 +77,16 @@ impl<'c> ConstantPool<'c> {
             let tag = read::<u8>(reader)?;
             print!("tag: {tag} \n");
             let entry = match tag {
-                1 => todo!(),
+                1 => {
+                    let length = read::<u16>(reader)? as usize;
+                    let mut bytes = bumpalo::vec![in arena; 0; length];
+                    reader.read_exact(&mut bytes)?;
+
+                    let utf8 = cesu8::from_java_cesu8(&bytes)?;
+                    let string = arena.alloc_str(&utf8);
+
+                    ConstantPoolEntry::Utf8(string)
+                }
                 3 => ConstantPoolEntry::Integer(read::<i32>(reader)?),
                 4 => ConstantPoolEntry::Float(read::<f32>(reader)?),
                 5 => {

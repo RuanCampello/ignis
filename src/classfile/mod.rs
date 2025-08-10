@@ -47,7 +47,7 @@ pub enum ClassfileError {
     #[error("Invalid classfile: magic number doesn't match.")]
     InvalidClassfile,
     #[error("Invalid UTF-8 string: {0}")]
-    InvalidUtf8(#[from] core::str::Utf8Error),
+    InvalidUtf8(#[from] cesu8::Cesu8DecodingError),
     #[error("Invalid or incompatible version found: {0}")]
     Version(u16),
     #[error(transparent)]
