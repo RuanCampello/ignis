@@ -49,7 +49,7 @@ pub(crate) enum ConstantPoolEntry<'c> {
 }
 
 #[derive(Error, Debug, PartialEq)]
-pub(crate) enum ConstantPoolError {
+pub enum ConstantPoolError {
     #[error("Invalid index location: {0}")]
     InvalidIndex(u16),
     #[error("Attribute name is not utf8 on index: {0}")]
@@ -139,6 +139,18 @@ impl<'c> ConstantPool<'c> {
     /// **Note**: it uses 1-index based.
     pub fn get(&self, index: u16) -> Result<&ConstantPoolEntry, ConstantPoolError> {
         self.get_with(index, |entry| Ok(entry))
+    }
+
+    pub fn get_classname(&self, index: u16) -> Result<&str, ConstantPoolError> {
+        self.get_with(index, |entry| match entry {
+            ConstantPoolEntry::Class(name_index) => {
+                self.get_with(*name_index, |utf8_entry| match utf8_entry {
+                    ConstantPoolEntry::Utf8(s) => Ok(*s),
+                    _ => Err(ConstantPoolError::InvalidIndex(*name_index)),
+                })
+            }
+            _ => Err(ConstantPoolError::InvalidIndex(index)),
+        })
     }
 
     pub fn get_with<F, T>(

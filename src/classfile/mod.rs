@@ -14,14 +14,14 @@ mod fields;
 use self::{attributes::get_attributes, fields::FieldFlags};
 use bitflags::bitflags;
 use bumpalo::{Bump, collections::Vec};
-use constant_pool::{ConstantPool, ConstantPoolEntry, ConstantPoolError};
+use constant_pool::{ConstantPool, ConstantPoolError};
 use fields::Field;
-use std::io::{BufReader, Cursor, Read, Seek, SeekFrom};
+use std::io::{BufReader, Cursor, Read};
 use thiserror::Error;
 
 /// Classfile structure defined by JVMS (4.1)
 #[derive(Debug, PartialEq, Clone)]
-pub(crate) struct Classfile<'p> {
+pub struct Classfile<'p> {
     version: Version,
     constant_pool: ConstantPool<'p>,
     access_flags: AccessFlags,
@@ -151,6 +151,38 @@ impl<'c> Classfile<'c> {
             interfaces,
             fields,
         })
+    }
+
+    pub fn is_public(&self) -> bool {
+        self.access_flags.contains(AccessFlags::PUBLIC)
+    }
+    pub fn is_final(&self) -> bool {
+        self.access_flags.contains(AccessFlags::FINAL)
+    }
+    pub fn is_abstract(&self) -> bool {
+        self.access_flags.contains(AccessFlags::ABSTRACT)
+    }
+
+    pub fn get_class_name(&self, index: u16) -> Option<&str> {
+        match self.constant_pool.get_classname(index) {
+            Ok(string) => Some(string),
+            _ => None,
+        }
+    }
+
+    pub fn field_names(&'c self, arena: &'c Bump) -> Result<Vec<&'c str>, ConstantPoolError> {
+        use self::constant_pool::ConstantPoolEntry;
+        let mut names = bumpalo::collections::Vec::new_in(arena);
+
+        for f in self.fields.iter() {
+            let name = self.constant_pool.get_with(f.name_index, |e| match e {
+                ConstantPoolEntry::Utf8(s) => Ok(*s),
+                _ => Err(ConstantPoolError::InvalidIndex(f.name_index)),
+            })?;
+            names.push(name);
+        }
+
+        Ok(names)
     }
 }
 
