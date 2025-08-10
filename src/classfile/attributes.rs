@@ -253,15 +253,13 @@ impl<'at> AsRef<Attribute<'at>> for Attribute<'at> {
 
 impl<'at> Attribute<'at> {
     fn new(
-        buffer: &'at [u8],
+        reader: &mut BufReader<impl Read>,
+        attribute_name_index: u16,
+        attribute_len: u32,
         constant_pool: &'at ConstantPool<'at>,
         arena: &'at bumpalo::Bump,
     ) -> Result<Self, ClassfileError>
     {
-        let reader = &mut BufReader::new(buffer);
-
-        let attribute_name_index: u16 = read(reader)?;
-        
         let attribute_name: &str =
             constant_pool.get_with(attribute_name_index, |entry| match entry {
                 ConstantPoolEntry::Utf8(utf8) => Ok(utf8),
@@ -269,8 +267,6 @@ impl<'at> Attribute<'at> {
                     attribute_name_index as usize,
                 )),
             })?;
-
-        let attribute_len: u32 = read(reader)?;
         
         let attribute = match attribute_name {
             "ConstantValue" => Attribute::ConstantValue {
@@ -652,24 +648,9 @@ pub(in crate::classfile) fn get_attributes<'at>(
 
     for _ in 0..attributes_count {
         let name_index: u16 = read(reader)?;
-        let length = read::<u32>(reader)? as usize;
-
-        // Create buffer that includes the name_index and length, plus the attribute data
-        let total_length = 2 + 4 + length; // 2 bytes for name_index, 4 bytes for length, + data
-        let mut buffer = bumpalo::vec![in arena; 0; total_length];
+        let length = read::<u32>(reader)?;
         
-        // Write name_index and length into the buffer
-        buffer[0..2].copy_from_slice(&name_index.to_be_bytes());
-        buffer[2..6].copy_from_slice(&(length as u32).to_be_bytes());
-        
-        // Read the actual attribute data
-        let mut attribute_data = vec![0; length];
-        reader.read_exact(&mut attribute_data)?;
-        buffer[6..].copy_from_slice(&attribute_data);
-        
-        let buffer = buffer.into_bump_slice();
-        
-        let attribute = Attribute::new(buffer, constant_pool, arena)?;
+        let attribute = Attribute::new(reader, name_index, length, constant_pool, arena)?;
         attributes.push(attribute);
     }
 
