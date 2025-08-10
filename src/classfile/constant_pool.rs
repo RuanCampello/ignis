@@ -67,15 +67,12 @@ impl<'c> ConstantPool<'c> {
     ) -> Result<Self, ClassfileError> {
         use crate::classfile::read;
 
-        let count: u16 = read(reader)?;
-
-        print!("count: {count}\n");
-        let mut pool = ConstantPool::with_capacity(count as usize, arena);
+        let count = read::<u16>(reader)? as usize;
+        let mut pool = ConstantPool::with_capacity(count, arena);
         let mut idx = 0;
 
-        while idx < count {
+        while idx < count - 1 {
             let tag = read::<u8>(reader)?;
-            print!("tag: {tag} \n");
             let entry = match tag {
                 1 => {
                     let length = read::<u16>(reader)? as usize;
