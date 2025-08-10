@@ -6,10 +6,10 @@ use std::io::{BufReader, Read};
 /// `method_info` as defined by JVSM 4.6.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub(in crate::classfile) struct Method<'m> {
-    access_flags: MethodFlags,
-    name_index: u16,
-    descriptor_index: u16,
-    attributes: &'m [Attribute<'m>],
+    pub access_flags: MethodFlags,
+    pub name_index: u16,
+    pub descriptor_index: u16,
+    pub attributes: &'m [Attribute<'m>],
 }
 
 bitflags! {

@@ -16,7 +16,15 @@ fn person_class() -> Result<()> {
 
     let fields = classfile.field_names(&arena)?;
     assert_eq!(fields, bumpalo::vec![in &arena; "name", "age"]);
-    print!("{classfile:#?}\n");
+    let methods = classfile.methods_signatures(&arena)?;
+    assert_eq!(
+        methods,
+        bumpalo::vec![
+            in &arena;
+            ("<init>", "(Ljava/lang/String;I)V"),
+            ("getName", "()Ljava/lang/String;")
+        ]
+    );
 
     Ok(())
 }

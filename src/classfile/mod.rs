@@ -180,7 +180,7 @@ impl<'c> Classfile<'c> {
     pub fn field_names(&'c self, arena: &'c Bump) -> Result<Vec<&'c str>, ConstantPoolError> {
         use self::constant_pool::ConstantPoolEntry;
 
-        let mut names = bumpalo::collections::Vec::new_in(arena);
+        let mut names = Vec::new_in(arena);
 
         for f in self.fields.iter() {
             let name = self.constant_pool.get_with(f.name_index, |e| match e {
@@ -191,6 +191,33 @@ impl<'c> Classfile<'c> {
         }
 
         Ok(names)
+    }
+
+    pub fn methods_signatures(
+        &'c self,
+        arena: &'c Bump,
+    ) -> Result<Vec<'c, (&'c str, &'c str)>, ClassfileError> {
+        use self::constant_pool::ConstantPoolEntry;
+
+        let mut methods = Vec::new_in(arena);
+
+        for m in self.methods.iter() {
+            let name = self.constant_pool.get_with(m.name_index, |e| match e {
+                ConstantPoolEntry::Utf8(s) => Ok(*s),
+                _ => Err(ConstantPoolError::InvalidIndex(m.name_index)),
+            })?;
+
+            let descriptor = self
+                .constant_pool
+                .get_with(m.descriptor_index, |e| match e {
+                    ConstantPoolEntry::Utf8(s) => Ok(*s),
+                    _ => Err(ConstantPoolError::InvalidIndex(m.descriptor_index)),
+                })?;
+
+            methods.push((name, descriptor));
+        }
+
+        Ok(methods)
     }
 }
 
