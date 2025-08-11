@@ -5,11 +5,11 @@ use std::io::{BufReader, Read};
 
 /// `method_info` as defined by JVSM 4.6.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub(in crate::classfile) struct Method<'m> {
-    pub access_flags: MethodFlags,
-    pub name_index: u16,
-    pub descriptor_index: u16,
-    pub attributes: &'m [Attribute<'m>],
+pub struct Method<'m> {
+    pub(super) access_flags: MethodFlags,
+    pub(super) name_index: u16,
+    pub(super) descriptor_index: u16,
+    pub(super) attributes: &'m [Attribute<'m>],
 }
 
 bitflags! {
@@ -40,6 +40,12 @@ bitflags! {
         const STRICT = 0x0800;
         /// Declared synthetic; not present in the source code.
         const SYNTHETIC = 0x1000;
+    }
+}
+
+impl<'c> Method<'c> {
+    pub fn contains(&self, flag: MethodFlags) -> bool {
+        self.access_flags.contains(flag)
     }
 }
 

@@ -7,19 +7,22 @@
 //!
 //! The output of this module is a structured `ClassFile` representation, which is used by the class loader and interpreter.
 
-#![allow(elided_named_lifetimes)]
+#![allow(elided_named_lifetimes, private_interfaces)]
 
 mod attributes;
 mod constant_pool;
 mod fields;
 mod methods;
 
+pub use fields::FieldFlags;
+pub use methods::MethodFlags;
+
 use crate::classfile::{
     fields::parse_fields,
     methods::{Method, parse_methods},
 };
 
-use self::{attributes::get_attributes, fields::FieldFlags};
+use self::attributes::get_attributes;
 use bitflags::bitflags;
 use bumpalo::{Bump, collections::Vec};
 use constant_pool::{ConstantPool, ConstantPoolError};
@@ -36,8 +39,8 @@ pub struct Classfile<'cf> {
     this_class: u16,
     super_class: u16,
     interfaces: &'cf [u16],
-    fields: &'cf [Field<'cf>],
-    methods: &'cf [Method<'cf>],
+    pub fields: &'cf [Field<'cf>],
+    pub methods: &'cf [Method<'cf>],
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

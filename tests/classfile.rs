@@ -1,4 +1,4 @@
-use ignis::classfile::{Classfile, ClassfileError};
+use ignis::classfile::{Classfile, ClassfileError, FieldFlags, MethodFlags};
 use std::fs::{self};
 
 type Result<T> = std::result::Result<T, ClassfileError>;
@@ -58,6 +58,10 @@ fn employee_class() -> Result<()> {
         ("getName", "()Ljava/lang/String;"),
         ("getCompany", "()Ljava/lang/String;")],
     );
+
+    assert!(classfile.methods[3].contains(MethodFlags::STATIC));
+    assert!(classfile.fields[2].contains(FieldFlags::STATIC));
+    assert!(classfile.methods[1].contains(MethodFlags::ABSTRACT));
 
     Ok(())
 }

@@ -9,16 +9,16 @@ use std::io::{BufReader, Read};
 
 /// `field_info` defined by JVSM 4.5.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub(in crate::classfile) struct Field<'at> {
-    pub access_flags: FieldFlags,
-    pub name_index: u16,
-    pub descriptor_index: u16,
-    pub attributes: &'at [Attribute<'at>],
+pub struct Field<'at> {
+    pub(super) access_flags: FieldFlags,
+    pub(super) name_index: u16,
+    pub(super) descriptor_index: u16,
+    pub(super) attributes: &'at [Attribute<'at>],
 }
 
 bitflags! {
     #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-    pub(crate) struct FieldFlags: u16 {
+    pub struct FieldFlags: u16 {
         /// Declared public; may be accessed from outside its package.
         const PUBLIC    = 0x0001;
         /// Declared private; accessible only within the defining class and other classes belonging
@@ -38,6 +38,12 @@ bitflags! {
         const SYNTHETIC = 0x1000;
         /// Declared as an element of an enum class.
         const ENUM      = 0x4000;
+    }
+}
+
+impl<'f> Field<'f> {
+    pub fn contains(&self, flag: FieldFlags) -> bool {
+        self.access_flags.contains(flag)
     }
 }
 
