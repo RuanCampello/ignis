@@ -68,3 +68,12 @@ fn employee_class() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn enum_class() -> Result<()> {
+    let arena = bumpalo::Bump::new();
+    let bytes = fs::read("./tests/sources/TaskStatus.class")?;
+    let classfile = Classfile::new(&bytes, &arena)?;
+
+    Ok(())
+}

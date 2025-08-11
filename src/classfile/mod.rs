@@ -132,6 +132,7 @@ impl<'c> Classfile<'c> {
         let version = Version::new(major, minor);
 
         let constant_pool = arena.alloc(ConstantPool::new(&mut reader, arena)?);
+        println!("constant_pool: {constant_pool:?}");
         let access_flags = AccessFlags::from_bits_truncate(read::<u16>(&mut reader)?);
         let this_class: u16 = read(&mut reader)?;
         let super_class: u16 = read(&mut reader)?;

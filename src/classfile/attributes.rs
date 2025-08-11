@@ -66,12 +66,15 @@ pub(in crate::classfile) enum Attribute<'at> {
     RuntimeInvisibleParameterAnnotations,
     RuntimeVisibleTypeAnnotations,
     RuntimeInvisibleTypeAnnotations,
+
     AnnotationDefault {
         element_value: ElementValue<'at>,
         bytes: &'at [u8],
     },
     BootstrapMethods,
-    MethodParameters,
+    MethodParameters {
+        parameters: &'at [MethodParameterEntry],
+    },
     Module,
     ModulePackages,
     ModuleMainClass,
@@ -88,7 +91,7 @@ pub(in crate::classfile) enum Attribute<'at> {
 }
 
 /// `element_value` structure as defined by JSVM (4.7.16.1)
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub(in crate::classfile) enum ElementValue<'at> {
     ConstValueIndex {
         tag: u8,
@@ -183,19 +186,25 @@ pub(in crate::classfile) struct LocalVariableTypeEntry {
     index: u16,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub(in crate::classfile) struct Annotation<'el> {
     type_index: u16,
     element_value_pairs: &'el [ElementValuePair<'el>],
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub(in crate::classfile) struct MethodParameterEntry {
+    name_index: u16,
+    access_flags: MethodParameterFlags,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub(in crate::classfile) struct ElementValuePair<'el> {
     element_name_index: u16,
     element_value: ElementValue<'el>,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub(in crate::classfile) struct RecordComponentInfo<'at> {
     name_index: u16,
     descriptor_index: u16,
@@ -245,6 +254,22 @@ bitflags! {
     }
 }
 
+bitflags! {
+    #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+    pub struct MethodParameterFlags: u16 {
+        /// Indicates that the formal parameter was declared `final`.
+        const ACC_FINAL =     0x0010;
+        /// Indicates that the formal parameter was not explicitly or implicitly declared in source code,
+        /// according to the specification of the language in which the source code was written (JLS §13.1).
+        /// (The formal parameter is an implementation artifact of the compiler which produced this class file.)
+        const ACC_SYNTHETIC = 0x1000;
+        /// Indicates that the formal parameter was implicitly declared in source code,
+        /// according to the specification of the language in which the source code was written (JLS §13.1).
+        /// (The formal parameter is mandated by a language specification, so all compilers for the language must emit it.)
+        const ACC_MANDATED =  0x8000;
+    }
+}
+
 impl<'at> AsRef<Attribute<'at>> for Attribute<'at> {
     fn as_ref(&self) -> &Attribute<'at> {
         self
@@ -261,7 +286,9 @@ impl<'at> Attribute<'at> {
     ) -> Result<Self, ClassfileError> {
         let attribute_name: &str = constant_pool.get_with(name_index, |entry| match entry {
             ConstantPoolEntry::Utf8(utf8) => Ok(utf8),
-            _ => Err(ConstantPoolError::InvalidAttr(name_index as usize)),
+            attr => panic!(
+                "Attribute {attr:?} with index {name_index} is not a Utf8 entry in the constant pool."
+            ),
         })?;
 
         let attribute = match attribute_name {
@@ -315,17 +342,17 @@ impl<'at> Attribute<'at> {
                         }
 
                         FrameType::SameStack => {
-                            let offset_delta: u16 = read(reader)?;
+                            let offset_delta = frame_byte as u16 - 64;
                             let stack = VerificationTypeInfo::try_from(&mut *reader)?;
 
                             StackMapEntry::SameStack {
-                                offset_delta: offset_delta - 64,
+                                offset_delta,
                                 stack,
                             }
                         }
 
                         FrameType::SameStackExtended => {
-                            let offset_delta: u16 = read(reader)?;
+                            let offset_delta = frame_byte as u16;
                             let stack = VerificationTypeInfo::try_from(&mut *reader)?;
 
                             StackMapEntry::SameStackExtended {
@@ -541,6 +568,20 @@ impl<'at> Attribute<'at> {
                     element_value: get_element_value(&mut reader, constant_pool, arena)?,
                     bytes,
                 }
+            }
+
+            "MethodParameters" => {
+                let parameter_count = read::<u8>(reader)? as usize;
+                let mut parameters = Vec::with_capacity_in(parameter_count, arena);
+
+                for _ in (0..parameter_count) {
+                    parameters.push(MethodParameterEntry {
+                        name_index: read(reader)?,
+                        access_flags: MethodParameterFlags::from_bits_truncate(read(reader)?),
+                    });
+                }
+                let parameters = parameters.into_bump_slice();
+                Attribute::MethodParameters { parameters }
             }
 
             "NestHost" => Attribute::NestHost {
