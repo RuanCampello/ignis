@@ -6,3 +6,5 @@
 //! It also manages the interaction with the runtime constant pool and resolves symbolic references during execution.
 //! This module acts as the bridge between the static class file data and the dynamic execution of Java programs,
 //! forming the heart of the JVM interpreter and class loader runtime system.
+
+mod instructions;
