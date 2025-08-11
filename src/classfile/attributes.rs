@@ -336,10 +336,9 @@ impl<'at> Attribute<'at> {
                     let frame_type = FrameType::from(frame_byte);
 
                     let entry = match frame_type {
-                        FrameType::SameFrame => {
-                            let offset_delta: u16 = read(reader)?;
-                            StackMapEntry::SameFrame { offset_delta }
-                        }
+                        FrameType::SameFrame => StackMapEntry::SameFrame {
+                            offset_delta: frame_byte as _,
+                        },
 
                         FrameType::SameStack => {
                             let offset_delta = frame_byte as u16 - 64;
@@ -352,11 +351,10 @@ impl<'at> Attribute<'at> {
                         }
 
                         FrameType::SameStackExtended => {
-                            let offset_delta = frame_byte as u16;
                             let stack = VerificationTypeInfo::try_from(&mut *reader)?;
 
                             StackMapEntry::SameStackExtended {
-                                offset_delta,
+                                offset_delta: frame_byte as _,
                                 stack,
                             }
                         }
@@ -384,7 +382,6 @@ impl<'at> Attribute<'at> {
 
                         FrameType::FullFrame => {
                             let offset_delta = read(reader)?;
-
                             let locals_count = read::<u16>(reader)? as usize;
                             let mut locals = Vec::with_capacity_in(locals_count, arena);
 
