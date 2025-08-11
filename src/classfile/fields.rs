@@ -42,8 +42,8 @@ bitflags! {
 }
 
 impl<'f> Field<'f> {
-    pub fn contains(&self, flag: FieldFlags) -> bool {
-        self.access_flags.contains(flag)
+    pub fn contains(&self, flags: &[FieldFlags]) -> bool {
+        flags.iter().all(|flag| self.access_flags.contains(*flag))
     }
 }
 

@@ -59,9 +59,12 @@ fn employee_class() -> Result<()> {
         ("getCompany", "()Ljava/lang/String;")],
     );
 
-    assert!(classfile.methods[3].contains(MethodFlags::STATIC));
-    assert!(classfile.fields[2].contains(FieldFlags::STATIC));
-    assert!(classfile.methods[1].contains(MethodFlags::ABSTRACT));
+    assert!(classfile.methods[3].contains(&[MethodFlags::STATIC]));
+    assert!(classfile.methods[1].contains(&[MethodFlags::ABSTRACT, MethodFlags::PUBLIC]));
+
+    assert!(classfile.fields[2].contains(&[FieldFlags::STATIC, FieldFlags::FINAL]));
+    assert!(classfile.fields[1].contains(&[FieldFlags::PROTECTED]));
+    assert!(classfile.fields[0].contains(&[FieldFlags::PRIVATE]));
 
     Ok(())
 }

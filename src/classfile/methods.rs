@@ -44,8 +44,8 @@ bitflags! {
 }
 
 impl<'c> Method<'c> {
-    pub fn contains(&self, flag: MethodFlags) -> bool {
-        self.access_flags.contains(flag)
+    pub fn contains(&self, flags: &[MethodFlags]) -> bool {
+        flags.iter().all(|flag| self.access_flags.contains(*flag))
     }
 }
 
