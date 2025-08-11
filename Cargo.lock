@@ -42,6 +42,7 @@ dependencies = [
  "bitflags",
  "bumpalo",
  "cesu8",
+ "once_cell",
  "thiserror",
  "tracing-subscriber",
 ]

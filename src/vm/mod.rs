@@ -11,6 +11,7 @@ use std::path::Path;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 mod instructions;
+mod runtime;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 

@@ -8,5 +8,6 @@ edition = "2024"
 bitflags = "2.9.1"
 bumpalo = { version = "3.19.0", features = ["collections"] }
 cesu8 = "=1.1.0"
+once_cell = { version = "1.21.3", default-features = false }
 thiserror = "2.0.12"
 tracing-subscriber = { version = "0.3.19", default-features = false, features = ["fmt", "env-filter"] }
