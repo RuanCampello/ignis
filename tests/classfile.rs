@@ -75,5 +75,22 @@ fn enum_class() -> Result<()> {
     let bytes = fs::read("./tests/sources/TaskStatus.class")?;
     let classfile = Classfile::new(&bytes, &arena)?;
 
+    assert_eq!(classfile.version(), (68, 0)); // this file was compiled with javac 24.0.2
+    assert!(classfile.is_public());
+    assert_eq!(classfile.class_name(), Some("TaskStatus"));
+    assert_eq!(classfile.super_class(), Some("java/lang/Enum")); // enums inherit from other kind of super class than classes
+    assert!(classfile.is_enum());
+
+    for field in &classfile.fields[0..=3] {
+        let is_enum = field.contains(&[
+            FieldFlags::ENUM,
+            FieldFlags::PUBLIC,
+            FieldFlags::STATIC,
+            FieldFlags::FINAL,
+        ]);
+
+        assert!(is_enum);
+    }
+
     Ok(())
 }

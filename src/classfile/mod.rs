@@ -132,7 +132,6 @@ impl<'c> Classfile<'c> {
         let version = Version::new(major, minor);
 
         let constant_pool = arena.alloc(ConstantPool::new(&mut reader, arena)?);
-        println!("constant_pool: {constant_pool:?}");
         let access_flags = AccessFlags::from_bits_truncate(read::<u16>(&mut reader)?);
         let this_class: u16 = read(&mut reader)?;
         let super_class: u16 = read(&mut reader)?;
@@ -167,6 +166,10 @@ impl<'c> Classfile<'c> {
     }
     pub fn is_abstract(&self) -> bool {
         self.access_flags.contains(AccessFlags::ABSTRACT)
+    }
+
+    pub fn is_enum(&self) -> bool {
+        self.access_flags.contains(AccessFlags::ENUM)
     }
 
     pub fn version(&self) -> (u16, u16) {
