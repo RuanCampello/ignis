@@ -1,10 +1,9 @@
+use crate::vm::runtime::VmError;
 use dashmap::DashMap;
 use indexmap::IndexMap;
 use once_cell::sync::{Lazy, OnceCell};
 use parking_lot::RwLock;
 use std::{collections::HashMap, path::Path, sync::Arc};
-
-use crate::vm::runtime::VmError;
 
 static METHOD_AREA: OnceCell<MethodArea> = OnceCell::new();
 static PRIMITIVE_TYPE: Lazy<HashMap<&str, &str>> = {
@@ -62,20 +61,38 @@ where
 }
 
 impl<'m> MethodArea<'m> {
-    pub(super) fn initialise(path: impl AsRef<Path>) -> Result<(), VmError> {
+    const PUBLIC: u16 = 0x0001;
+    const ABSTRACT: u16 = 0x0400;
+    const FINAL: u16 = 0x0010;
+
+    pub fn initialise(path: impl AsRef<Path>) -> Result<(), VmError> {
         METHOD_AREA
             .set(MethodArea::new(path)?)
             .map_err(|_| VmError::MethodAreaInitialised)
     }
 
-    pub(super) fn new(path: impl AsRef<Path>) -> Result<Self, VmError> {
+    pub fn new(path: impl AsRef<Path>) -> Result<Self, VmError> {
         let modules = path.as_ref().join("lib").join("modules");
+        let classes = Self::generate_classes();
 
         Ok(Self {
-            classes: DashMap::new(),
+            classes,
             reflection: DashMap::new(),
             thread_id: OnceCell::new(),
             group_thread_id: OnceCell::new(),
         })
+    }
+
+    fn generate_classes<'c>() -> DashMap<String, Class<'c>> {
+        PRIMITIVE_TYPE
+            .keys()
+            .map(|class_name| (class_name.to_string(), Self::generate_class(class_name)))
+            .collect()
+    }
+
+    fn generate_class(classname: &str) -> Class {
+        Class {
+            methods: IndexMap::new(),
+        }
     }
 }
