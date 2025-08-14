@@ -2,5 +2,5 @@
 //! resources. It holds the live objects, class metadata, and constant pools needed during execution,
 //! providing the dynamic state that the VM operates on.
 
+mod heap;
 mod method_area;
-
