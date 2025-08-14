@@ -1,8 +1,8 @@
-use std::sync::Arc;
-
 use dashmap::DashMap;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
+use parking_lot::RwLock;
+use std::sync::Arc;
 
 static METHOD_AREA: OnceCell<MethodArea> = OnceCell::new();
 
@@ -24,6 +24,11 @@ pub(in crate::vm::runtime) struct Method<'m> {
     native: bool,
 
     annotations: Option<&'m [u8]>,
+}
+
+#[derive(Debug)]
+pub(in crate::vm::runtime) struct FieldValue {
+    value: RwLock<Vec<i32>>,
 }
 
 pub(crate) fn with_method_area<C, R>(callback: C) -> R

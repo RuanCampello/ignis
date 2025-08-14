@@ -1,6 +1,6 @@
-use std::sync::atomic::{AtomicI32, Ordering};
-
+use crate::vm::runtime::method_area::FieldValue;
 use indexmap::IndexMap;
+use std::sync::atomic::{AtomicI32, Ordering};
 
 #[derive(Debug)]
 pub(in crate::vm::runtime) struct Heap<'h> {
@@ -23,7 +23,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[derive(Debug)]
 /// Represents a value on the heap.
 enum HeapValue<'h> {
-    Object,
+    Object(Instance),
     Array(Array<'h>),
 }
 
@@ -31,6 +31,15 @@ enum HeapValue<'h> {
 struct Array<'h> {
     name: &'h str,
     value: &'h [u8],
+}
+
+#[derive(Debug)]
+/// Represents a Java object instance in the JVM heap.
+struct Instance {
+    /// Fully qualified class name of this object.
+    name: String,
+    /// Nested map of fields organized by class name and field name.
+    fields: IndexMap<String, IndexMap<String, FieldValue>>,
 }
 
 impl<'h> Heap<'h> {
