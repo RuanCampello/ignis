@@ -34,6 +34,8 @@ struct Array<'h> {
 }
 
 impl<'h> Heap<'h> {
+    /// Allocates a new *zeroed* array in the heap with the given `length`.
+    /// Returns its heap ID.
     pub fn allocate_array(&'h mut self, name: &'h str, length: i32) -> i32 {
         let element_size = Array::size(name);
         let len = (length as usize) * element_size;
@@ -46,9 +48,14 @@ impl<'h> Heap<'h> {
         id
     }
 
+    // Allocates a new array in the heap initialised with the given values.
+    // Returns its heap ID.
     pub fn allocate_array_with_values(&'h mut self, name: &'h str, array: &'h [u8]) -> i32 {
         let id = Self::next_id();
-        let array = Array { name, value: array };
+        let array = Array {
+            name,
+            value: self.arena.alloc_slice_copy(array),
+        };
 
         self.objects.insert(id, HeapValue::Array(array));
         id
