@@ -8,17 +8,23 @@
 //! forming the heart of the JVM interpreter and class loader runtime system.
 
 use std::path::Path;
+use thiserror::Error;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
-
 mod instructions;
 mod runtime;
-
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Default)]
 struct Args {
     entry: String,
 }
+
+#[derive(Error, Debug)]
+enum VmError {
+    #[error(transparent)]
+    Runtime(#[from] runtime::RuntimeError),
+}
+
+pub(in crate::vm) type Result<T> = std::result::Result<T, VmError>;
 
 /// Launches the VM.
 /// This initialise the JVM itself, loading the given class and invoking it `main` function.

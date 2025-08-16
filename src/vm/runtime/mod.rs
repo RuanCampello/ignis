@@ -3,12 +3,14 @@
 //! providing the dynamic state that the VM operates on.
 
 use thiserror::Error;
-
 mod heap;
 mod method_area;
 
 #[derive(Error, Debug)]
-pub(self) enum VmError {
+pub(in crate::vm) enum RuntimeError {
     #[error("METHOD_AREA was already initialised")]
     MethodAreaInitialised,
+
+    #[error("Attempted to access non-existing field: '{field}' of object of class '{classname}'")]
+    InvalidObjectAcess { classname: String, field: String },
 }

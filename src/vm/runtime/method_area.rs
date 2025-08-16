@@ -1,4 +1,4 @@
-use crate::vm::runtime::VmError;
+use crate::vm::{Result, VmError, runtime::RuntimeError};
 use dashmap::DashMap;
 use indexmap::IndexMap;
 use once_cell::sync::{Lazy, OnceCell};
@@ -65,13 +65,13 @@ impl<'m> MethodArea<'m> {
     const ABSTRACT: u16 = 0x0400;
     const FINAL: u16 = 0x0010;
 
-    pub fn initialise(path: impl AsRef<Path>) -> Result<(), VmError> {
+    pub fn initialise(path: impl AsRef<Path>) -> Result<()> {
         METHOD_AREA
             .set(MethodArea::new(path)?)
-            .map_err(|_| VmError::MethodAreaInitialised)
+            .map_err(|_| RuntimeError::MethodAreaInitialised.into())
     }
 
-    pub fn new(path: impl AsRef<Path>) -> Result<Self, VmError> {
+    pub fn new<'a>(path: impl AsRef<Path>) -> Result<Self> {
         let modules = path.as_ref().join("lib").join("modules");
         let classes = Self::generate_classes();
 
@@ -94,5 +94,13 @@ impl<'m> MethodArea<'m> {
         Class {
             methods: IndexMap::new(),
         }
+    }
+}
+
+impl FieldValue {
+    pub(super) fn value(&self) -> Result<Vec<i32>> {
+        let guard = self.value.read();
+        // Ok(guard)
+        todo!()
     }
 }
