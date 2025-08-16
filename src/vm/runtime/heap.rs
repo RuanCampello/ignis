@@ -130,9 +130,11 @@ impl Heap {
 impl Instance {
     fn get_value(&self, classname: &str, field: &str) -> Result<Vec<i32>> {
         self.lookup_field(classname, field)
-            .and_then(|value| Some(value));
-
-        todo!()
+            .and_then(|value| Some(value.value()))
+            .ok_or(Error::InvalidObjectAcess {
+                classname: classname.to_string(),
+                field: field.to_string(),
+            })?
     }
 
     fn lookup_field(&self, from: &str, field: &str) -> Option<&FieldValue> {

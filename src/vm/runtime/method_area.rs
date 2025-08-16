@@ -100,7 +100,6 @@ impl<'m> MethodArea<'m> {
 impl FieldValue {
     pub(super) fn value(&self) -> Result<Vec<i32>> {
         let guard = self.value.read();
-        // Ok(guard)
-        todo!()
+        Ok(guard.clone())
     }
 }
