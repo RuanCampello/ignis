@@ -1,20 +1,20 @@
 use crate::vm::runtime::method_area::FieldValue;
 use indexmap::IndexMap;
+use once_cell::sync::Lazy;
+use parking_lot::RwLock;
 use std::sync::atomic::{AtomicI32, Ordering};
 
 #[derive(Debug)]
-pub(in crate::vm::runtime) struct Heap<'h> {
-    /// Memory arena used for allocating heap values such as arrays.
-    /// Currently, the heap lives for the duration of the program, so all arena allocations
-    /// remain valid until the heap is dropped.
-    ///
-    /// *Note*: when implementing garbage collection, this allocation strategy may need to change
-    /// to support moving or freeing individual objects.
-    arena: bumpalo::Bump,
-
+pub(in crate::vm::runtime) struct Heap {
     /// Heap storage keyed by object reference id.
-    objects: IndexMap<i32, HeapValue<'h>>,
+    objects: IndexMap<i32, HeapValue>,
 }
+
+static HEAP: Lazy<RwLock<Heap>> = Lazy::new(|| {
+    RwLock::new(Heap {
+        objects: IndexMap::new(),
+    })
+});
 
 static HEAP_ID: AtomicI32 = AtomicI32::new(1);
 
@@ -22,15 +22,15 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Debug)]
 /// Represents a value on the heap.
-enum HeapValue<'h> {
+enum HeapValue {
     Object(Instance),
-    Array(Array<'h>),
+    Array(Array),
 }
 
 #[derive(Debug)]
-struct Array<'h> {
-    name: &'h str,
-    value: &'h [u8],
+struct Array {
+    name: String,
+    value: Vec<u8>,
 }
 
 #[derive(Debug)]
@@ -42,15 +42,34 @@ struct Instance {
     fields: IndexMap<String, IndexMap<String, FieldValue>>,
 }
 
-impl<'h> Heap<'h> {
+pub(in crate::vm) fn with_heap<C, R>(callback: C) -> R
+where
+    C: FnOnce(&Heap) -> R,
+{
+    let heap = HEAP.read();
+    callback(&heap)
+}
+
+pub(in crate::vm) fn with_mut_heap<C, R>(callback: C) -> R
+where
+    C: FnOnce(&mut Heap) -> R,
+{
+    let mut heap = HEAP.write();
+    callback(&mut heap)
+}
+
+impl Heap {
     /// Allocates a new *zeroed* array in the heap with the given `length`.
     /// Returns its heap ID.
-    pub fn allocate_array(&'h mut self, name: &'h str, length: i32) -> i32 {
+    pub fn allocate_array(&mut self, name: &str, length: i32) -> i32 {
         let element_size = Array::size(name);
         let len = (length as usize) * element_size;
-        let value = self.arena.alloc_slice_fill_copy(len, 0u8);
+        let value = vec![0u8; len];
 
-        let array = Array { name, value };
+        let array = Array {
+            name: name.to_string(),
+            value,
+        };
         let id = Self::next_id();
 
         self.objects.insert(id, HeapValue::Array(array));
@@ -59,11 +78,11 @@ impl<'h> Heap<'h> {
 
     // Allocates a new array in the heap initialised with the given values.
     // Returns its heap ID.
-    pub fn allocate_array_with_values(&'h mut self, name: &'h str, array: &'h [u8]) -> i32 {
+    pub fn allocate_array_with_values(&mut self, name: &str, array: Vec<u8>) -> i32 {
         let id = Self::next_id();
         let array = Array {
-            name,
-            value: self.arena.alloc_slice_copy(array),
+            name: name.to_string(),
+            value: array,
         };
 
         self.objects.insert(id, HeapValue::Array(array));
@@ -75,7 +94,7 @@ impl<'h> Heap<'h> {
     }
 }
 
-impl<'a> Array<'a> {
+impl Array {
     fn size(name: &str) -> usize {
         match name {
             "[B" => 1, // byte
