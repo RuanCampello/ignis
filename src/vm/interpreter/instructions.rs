@@ -1,4 +1,4 @@
-//! Java bytecode [instructions](https://docs.oracle.com/javase/specs/jvms/se24/html/jvms-6.html) opcode;
+//! Java bytecode opcode [instructions](https://docs.oracle.com/javase/specs/jvms/se24/html/jvms-6.html).
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[repr(u8)]

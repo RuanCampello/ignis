@@ -10,7 +10,8 @@
 use std::path::Path;
 use thiserror::Error;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
-mod instructions;
+
+mod interpreter;
 mod runtime;
 
 #[derive(Default)]
