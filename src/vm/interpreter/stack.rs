@@ -24,9 +24,9 @@ type Result<T> = std::result::Result<T, StackError>;
 
 pub(super) trait StackValue: Sized {
     /// Retrives the value at `index` from the stack frame.
-    fn get(index: usize, frame: &mut StackFrame<Self>) -> Result<()>;
+    fn get(index: usize, frame: &mut StackFrame<Self>) -> Self;
     /// Set the value at `index` in the stack frame.
-    fn set(&self, index: usize, frame: &mut StackFrame<Self>) -> Self;
+    fn set(&self, index: usize, frame: &mut StackFrame<Self>);
 
     /// Push the value onto the operand stack.
     fn push(&self, frame: &mut StackFrame<Self>) -> Result<()>;
@@ -34,7 +34,7 @@ pub(super) trait StackValue: Sized {
     fn pop(frame: &mut StackFrame<Self>) -> Self;
 }
 
-impl<V: StackValue + Default + Clone> StackFrame<V> {
+impl<V: StackValue + Default + Clone + Copy> StackFrame<V> {
     pub fn new(variables_size: usize, stack_size: usize) -> Self {
         Self {
             pc: 0,
@@ -43,8 +43,12 @@ impl<V: StackValue + Default + Clone> StackFrame<V> {
         }
     }
 
-    pub fn push_value(&mut self, value: V) -> Result<()> {
-        self.operand_stack.push(value)
+    pub fn get_variable(&self, index: usize) -> V {
+        self.variables[index]
+    }
+
+    pub fn set_variable(&mut self, index: usize, value: V) {
+        self.variables[index] = value;
     }
 }
 
@@ -70,5 +74,23 @@ impl<T> Stack<T> {
 
     fn clear(&mut self) {
         self.inner.clear();
+    }
+}
+
+impl StackValue for i32 {
+    fn get(index: usize, frame: &mut StackFrame<Self>) -> Self {
+        frame.get_variable(index)
+    }
+
+    fn set(&self, index: usize, frame: &mut StackFrame<Self>) {
+        frame.set_variable(index, *self);
+    }
+
+    fn push(&self, frame: &mut StackFrame<Self>) -> Result<()> {
+        frame.operand_stack.push(*self)
+    }
+
+    fn pop(frame: &mut StackFrame<Self>) -> Self {
+        frame.operand_stack.pop().expect("Stack must not be empty")
     }
 }
