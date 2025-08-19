@@ -23,6 +23,8 @@ struct Args {
 enum VmError {
     #[error(transparent)]
     Runtime(#[from] runtime::RuntimeError),
+    #[error(transparent)]
+    Interpreter(#[from] interpreter::InterpreterError),
 }
 
 pub(in crate::vm) type Result<T> = std::result::Result<T, VmError>;
