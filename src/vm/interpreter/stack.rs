@@ -119,8 +119,16 @@ impl StackFrame {
         self.variables[index]
     }
 
+    pub fn get<V: StackValue>(&self, index: usize) -> V {
+        V::get(index, self)
+    }
+
     pub fn set_variable(&mut self, index: usize, value: ValueRef) {
         self.variables[index] = value;
+    }
+
+    pub fn set<V: StackValue>(&mut self, index: usize, value: V) {
+        value.set(index, self)
     }
 
     fn push_ref(&mut self, value: ValueRef) -> Result<()> {
@@ -245,6 +253,46 @@ impl StackValue for i64 {
     }
 }
 
+impl StackValue for f32 {
+    fn get(index: usize, frame: &StackFrame) -> Self {
+        let v: i32 = frame.get(index);
+        f32::from_bits(v as u32)
+    }
+
+    fn set(&self, index: usize, frame: &mut StackFrame) {
+        frame.set(index, self.to_bits() as i32);
+    }
+
+    fn push_onto(&self, frame: &mut StackFrame) -> Result<()> {
+        frame.push(self.to_bits() as i32)
+    }
+
+    fn pop_from(frame: &mut StackFrame) -> Result<Self> {
+        let v: i32 = frame.pop().ok_or(StackError::EmptyStack)?;
+        Ok(f32::from_bits(v as u32))
+    }
+}
+
+impl StackValue for f64 {
+    fn get(index: usize, frame: &StackFrame) -> Self {
+        let v: i64 = frame.get(index);
+        f64::from_bits(v as u64)
+    }
+
+    fn set(&self, index: usize, frame: &mut StackFrame) {
+        frame.set(index, self.to_bits() as i64);
+    }
+
+    fn push_onto(&self, frame: &mut StackFrame) -> Result<()> {
+        frame.push(self.to_bits() as i64)
+    }
+
+    fn pop_from(frame: &mut StackFrame) -> Result<Self> {
+        let v: i64 = frame.pop().ok_or(StackError::EmptyStack)?;
+        Ok(f64::from_bits(v as u64))
+    }
+}
+
 fn from_i32_to_i64(l: i32, h: i32) -> i64 {
     let h = (h as i64) << 32;
     let l = l as u32 as i64;
@@ -274,8 +322,8 @@ mod tests {
         let mut frame = StackFrame::new(5, 3, Arc::default(), Arc::default());
 
         let value1 = 15.12f32;
-        let value2 = 19.0;
-        let value3 = 24.09;
+        let value2 = 19.0f32;
+        let value3 = 24.09f32;
 
         assert!(frame.push(value1).is_ok());
         assert!(frame.push(value2).is_ok());
