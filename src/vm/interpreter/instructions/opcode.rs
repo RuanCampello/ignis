@@ -1,11 +1,12 @@
 //! Java bytecode opcode [instructions](https://docs.oracle.com/javase/specs/jvms/se24/html/jvms-6.html) definition.
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy, num_enum::FromPrimitive)]
 #[repr(u8)]
 #[allow(non_camel_case_types)]
 pub(crate) enum Opcode {
     // constants-related instructions
     /// Do nothing; execution proceeds to the next instruction.
+    #[default]
     NOP = 0x0,
     /// Push the `null` object reference onto the operand stack.
     ACONST_NULL,

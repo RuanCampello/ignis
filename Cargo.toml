@@ -10,6 +10,7 @@ bumpalo = { version = "3.19.0", features = ["collections"] }
 cesu8 = "=1.1.0"
 dashmap = { version = "6.1.0", default-features = false }
 indexmap = { version = "2.10.0" }
+num_enum = { version = "=0.7.4", default-features = false }
 once_cell = { version = "1.21.3", default-features = false }
 parking_lot = "0.12.4"
 thiserror = "2.0.12"
