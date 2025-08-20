@@ -18,23 +18,26 @@ pub(super) struct Stack<T> {
 pub(in crate::vm) enum StackError {
     #[error("Exceeded max stack size")]
     ExceededStackSize,
+
+    #[error("Operand stack underflow")]
+    StackUnderflow,
 }
 
 type Result<T> = std::result::Result<T, StackError>;
 
-pub(super) trait StackValue: Sized {
+pub(super) trait StackValue: Sized + Default + Copy {
     /// Retrives the value at `index` from the stack frame.
-    fn get(index: usize, frame: &mut StackFrame<Self>) -> Self;
+    fn get(index: usize, frame: &StackFrame<Self>) -> Self;
     /// Set the value at `index` in the stack frame.
     fn set(&self, index: usize, frame: &mut StackFrame<Self>);
 
     /// Push the value onto the operand stack.
     fn push(&self, frame: &mut StackFrame<Self>) -> Result<()>;
     /// Pop the value from the operand stack.
-    fn pop(frame: &mut StackFrame<Self>) -> Self;
+    fn pop(frame: &mut StackFrame<Self>) -> Result<Self>;
 }
 
-impl<V: StackValue + Default + Clone + Copy> StackFrame<V> {
+impl<V: StackValue> StackFrame<V> {
     pub fn new(variables_size: usize, stack_size: usize) -> Self {
         Self {
             pc: 0,
@@ -77,20 +80,26 @@ impl<T> Stack<T> {
     }
 }
 
-impl StackValue for i32 {
-    fn get(index: usize, frame: &mut StackFrame<Self>) -> Self {
-        frame.get_variable(index)
-    }
-
-    fn set(&self, index: usize, frame: &mut StackFrame<Self>) {
-        frame.set_variable(index, *self);
-    }
-
-    fn push(&self, frame: &mut StackFrame<Self>) -> Result<()> {
-        frame.operand_stack.push(*self)
-    }
-
-    fn pop(frame: &mut StackFrame<Self>) -> Self {
-        frame.operand_stack.pop().expect("Stack must not be empty")
-    }
+macro_rules! stack_value {
+    ($t:ty) => {
+        impl StackValue for $t {
+            fn get(index: usize, frame: &StackFrame<Self>) -> Self {
+                frame.variables[index]
+            }
+            fn set(&self, index: usize, frame: &mut StackFrame<Self>) {
+                frame.variables[index] = *self;
+            }
+            fn push(&self, frame: &mut StackFrame<Self>) -> Result<()> {
+                frame.operand_stack.push(*self)
+            }
+            fn pop(frame: &mut StackFrame<Self>) -> Result<Self> {
+                frame.operand_stack.pop().ok_or(StackError::StackUnderflow)
+            }
+        }
+    };
 }
+
+stack_value!(i32);
+stack_value!(i64);
+stack_value!(f32);
+stack_value!(f64);
