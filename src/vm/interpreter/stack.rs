@@ -1,12 +1,27 @@
 //! This module deals with operand stack, local-variables and stack frames.
 
 use crate::vm::VmError;
+use std::sync::Arc;
 use thiserror::Error;
 
 pub(super) struct StackFrame<V: StackValue> {
+    /// Program counter. This indicates the address of the next bytecode instruction
+    /// to be executed.
     pc: usize,
+    /// Stores the `pc` before a method invocation. If an exception in thrown during this given
+    /// invoked method, this value is restored to the `pc` handle the exception.
+    ex_pc: Option<usize>,
+    /// Array of local variables for the current method.
     variables: Box<[V]>,
+    /// The operand stack for the current method. It used to store intermediate values
+    /// and to pass parameters to and receive results from other methods.
     operand_stack: Stack<V>,
+    /// Shared reference to the bytecode of the method associated with this frame.
+    bytecode: Arc<Vec<u8>>,
+}
+
+pub(super) struct StackFrames<V: StackValue> {
+    frames: Vec<StackFrame<V>>,
 }
 
 pub(super) struct Stack<T> {
@@ -60,6 +75,22 @@ impl<V: StackValue> StackFrame<V> {
 
     pub fn set_variable(&mut self, index: usize, value: V) {
         self.variables[index] = value;
+    }
+}
+
+impl<V: StackValue> StackFrames<V> {
+    pub fn add_frame(&mut self, frame: StackFrame<V>) {
+        self.frames.push(frame)
+    }
+
+    pub fn quit_frame(&mut self) -> Option<StackFrame<V>> {
+        let top = self.pop();
+
+        top
+    }
+
+    fn pop(&mut self) -> Option<StackFrame<V>> {
+        self.frames.pop()
     }
 }
 
