@@ -17,7 +17,8 @@ pub(super) struct StackFrame<V: StackValue> {
     /// and to pass parameters to and receive results from other methods.
     operand_stack: Stack<V>,
     /// Shared reference to the bytecode of the method associated with this frame.
-    bytecode: Arc<Vec<u8>>,
+    bytecode: Arc<[u8]>,
+    current_classname: Arc<str>,
 }
 
 pub(super) struct StackFrames<V: StackValue> {
@@ -53,9 +54,17 @@ pub(super) trait StackValue: Sized + Default + Copy {
 }
 
 impl<V: StackValue> StackFrame<V> {
-    pub fn new(variables_size: usize, stack_size: usize) -> Self {
+    pub fn new(
+        variables_size: usize,
+        stack_size: usize,
+        bytecode: Arc<[u8]>,
+        current_classname: Arc<str>,
+    ) -> Self {
         Self {
+            bytecode,
+            current_classname,
             pc: 0,
+            ex_pc: None,
             variables: vec![V::default(); variables_size].into_boxed_slice(),
             operand_stack: Stack::with_capacity(stack_size),
         }
@@ -76,6 +85,10 @@ impl<V: StackValue> StackFrame<V> {
     pub fn set_variable(&mut self, index: usize, value: V) {
         self.variables[index] = value;
     }
+
+    fn reset_ex_pc(&mut self) {
+        self.ex_pc = None
+    }
 }
 
 impl<V: StackValue> StackFrames<V> {
@@ -85,6 +98,10 @@ impl<V: StackValue> StackFrames<V> {
 
     pub fn quit_frame(&mut self) -> Option<StackFrame<V>> {
         let top = self.pop();
+
+        if let Some(next) = self.frames.last_mut() {
+            next.reset_ex_pc()
+        }
 
         top
     }
@@ -149,7 +166,7 @@ mod tests {
 
     #[test]
     fn frame_stack_basics() {
-        let mut frame = StackFrame::new(10, 5);
+        let mut frame = StackFrame::new(10, 5, Arc::default(), Arc::default());
 
         let value1 = 10;
         let value2 = 20;
@@ -163,7 +180,7 @@ mod tests {
 
     #[test]
     fn frame_stack_overflow() {
-        let mut frame = StackFrame::new(5, 3);
+        let mut frame = StackFrame::new(5, 3, Arc::default(), Arc::default());
 
         let value1 = 15.12f32;
         let value2 = 19.0;
