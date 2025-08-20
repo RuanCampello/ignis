@@ -14,7 +14,7 @@ pub(super) struct Stack<T> {
     inner: Vec<T>,
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub(in crate::vm) enum StackError {
     #[error("Exceeded max stack size")]
     ExceededStackSize,
@@ -126,7 +126,25 @@ mod tests {
         assert!(frame.push(value1).is_ok());
         assert!(frame.push(value2).is_ok());
 
-        assert_eq!(frame.pop(), Some(20));
-        assert_eq!(frame.pop(), Some(10));
+        assert_eq!(frame.pop(), Some(value2));
+        assert_eq!(frame.pop(), Some(value1));
+    }
+
+    #[test]
+    fn frame_stack_overflow() {
+        let mut frame = StackFrame::new(5, 3);
+
+        let value1 = 15.12f32;
+        let value2 = 19.0;
+        let value3 = 24.09;
+
+        assert!(frame.push(value1).is_ok());
+        assert!(frame.push(value2).is_ok());
+        assert!(frame.push(value3).is_ok());
+
+        assert_eq!(frame.push(0.0).unwrap_err(), StackError::ExceededStackSize);
+
+        assert_eq!(frame.pop(), Some(value3));
+        assert!(frame.push(0.0).is_ok())
     }
 }
