@@ -46,6 +46,14 @@ impl<V: StackValue> StackFrame<V> {
         }
     }
 
+    pub fn push(&mut self, value: V) -> Result<()> {
+        value.push(self)
+    }
+
+    pub fn pop(&mut self) -> Option<V> {
+        V::pop(self).ok()
+    }
+
     pub fn get_variable(&self, index: usize) -> V {
         self.variables[index]
     }
@@ -103,3 +111,22 @@ stack_value!(i32);
 stack_value!(i64);
 stack_value!(f32);
 stack_value!(f64);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn frame_stack_basics() {
+        let mut frame = StackFrame::new(10, 5);
+
+        let value1 = 10;
+        let value2 = 20;
+
+        assert!(frame.push(value1).is_ok());
+        assert!(frame.push(value2).is_ok());
+
+        assert_eq!(frame.pop(), Some(20));
+        assert_eq!(frame.pop(), Some(10));
+    }
+}
