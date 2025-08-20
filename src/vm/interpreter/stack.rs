@@ -1,8 +1,9 @@
 //! This module deals with operand stack, local-variables and stack frames.
 
 use crate::vm::VmError;
-use std::sync::Arc;
+use std::{fmt::Display, sync::Arc};
 use thiserror::Error;
+use tracing::trace;
 
 pub(super) struct StackFrame<V: StackValue> {
     /// Program counter. This indicates the address of the next bytecode instruction
@@ -74,6 +75,30 @@ impl<V: StackValue> StackFrame<V> {
         value.push(self)
     }
 
+    pub(in crate::vm::interpreter) fn push_const<T>(&mut self, value: T, name: &str) -> Result<()>
+    where
+        V: StackValue + From<T>,
+        T: StackValue + Display,
+    {
+        self.push(value.into())?;
+        self.next_pc();
+
+        trace!("{name} -> {value}");
+
+        Ok(())
+    }
+
+    pub fn next_pc(&mut self) {
+        self.step_pc(1);
+    }
+
+    pub fn step_pc(&mut self, step: i16) {
+        match step >= 0 {
+            true => self.pc += step as usize,
+            false => self.pc -= (-step) as usize,
+        }
+    }
+
     pub fn pop(&mut self) -> Option<V> {
         V::pop(self).ok()
     }
@@ -84,6 +109,10 @@ impl<V: StackValue> StackFrame<V> {
 
     pub fn set_variable(&mut self, index: usize, value: V) {
         self.variables[index] = value;
+    }
+
+    fn store_ex_pc(&mut self) {
+        self.ex_pc = Some(self.pc);
     }
 
     fn reset_ex_pc(&mut self) {
@@ -108,6 +137,10 @@ impl<V: StackValue> StackFrames<V> {
 
     fn pop(&mut self) -> Option<StackFrame<V>> {
         self.frames.pop()
+    }
+
+    fn last_mut(&mut self) -> Option<&mut StackFrame<V>> {
+        self.frames.last_mut()
     }
 }
 
