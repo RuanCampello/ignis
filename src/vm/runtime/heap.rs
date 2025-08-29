@@ -8,7 +8,7 @@ use parking_lot::RwLock;
 use std::sync::atomic::{AtomicI32, Ordering};
 
 #[derive(Debug)]
-pub(in crate::vm::runtime) struct Heap {
+pub(in crate::vm) struct Heap {
     /// Heap storage keyed by object reference id.
     objects: IndexMap<i32, HeapValue>,
 }
@@ -36,7 +36,7 @@ struct Array {
 
 #[derive(Debug)]
 /// Represents a Java object instance in the JVM heap.
-pub(in crate::vm::runtime) struct Instance {
+pub(in crate::vm) struct Instance {
     /// Fully qualified class name of this object.
     name: String,
     /// Nested map of fields organized by class name and field name.
@@ -122,6 +122,13 @@ impl Heap {
         }
     }
 
+    pub fn get_array_value(&self, array_ref: i32, index: i32) -> Result<Vec<i32>> {
+        match self.objects.get(&array_ref) {
+            Some(HeapValue::Array(array)) => array.get(index),
+            _ => Err(Error::InvalidArrayAccess(index as usize).into()),
+        }
+    }
+
     fn next_id() -> i32 {
         HEAP_ID.fetch_add(1, Ordering::Relaxed)
     }
@@ -162,6 +169,38 @@ impl Array {
             "[S" => 2, // short
             "[Z" => 1, // boolean
             _ => 4,    // object reference default
+        }
+    }
+
+    fn get(&self, index: i32) -> Result<Vec<i32>> {
+        let size = Self::size(&self.name);
+        let offset = index as usize * size;
+
+        let slice = &self.value[offset..offset + size];
+        match size {
+            1..4 => {
+                let mut buff = [0u8; 4];
+                match cfg!(target_endian = "big") {
+                    true => buff[4 - size..4].copy_from_slice(slice),
+                    false => buff[0..size].copy_from_slice(slice),
+                };
+
+                let value = i32::from_ne_bytes(buff);
+                Ok(vec![value])
+            }
+            8 => {
+                let mut buff = [0u8; 8];
+                buff.copy_from_slice(slice);
+
+                let hi = i32::from_ne_bytes(buff[0..4].try_into().unwrap());
+                let lo = i32::from_ne_bytes(buff[4..8].try_into().unwrap());
+
+                match cfg!(target_endian = "big") {
+                    true => Ok(vec![hi, lo]),
+                    false => Ok(vec![lo, hi]),
+                }
+            }
+            _ => Err(Error::InvalidArrayEntrySize(size).into()),
         }
     }
 }

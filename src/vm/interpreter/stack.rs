@@ -1,6 +1,6 @@
 //! This module deals with operand stack, local-variables and stack frames.
 
-use crate::vm::{VmError, interpreter::instructions::opcode::Opcode};
+use crate::vm::{VmError, interpreter::instructions::opcode::Opcode, runtime::heap::with_heap};
 use std::{fmt::Display, sync::Arc};
 use thiserror::Error;
 use tracing::trace;
@@ -123,6 +123,18 @@ impl StackFrame {
         trace!("{code}{position} -> value={value}");
 
         Ok(())
+    }
+
+    pub(in crate::vm::interpreter) fn load_array<V: StackValue + Display>(
+        &mut self,
+        code: Opcode,
+    ) -> Result<()> {
+        let idx: i32 = self.pop().unwrap();
+        let array_idx: i32 = self.pop().unwrap();
+
+        // let value = with_heap(|heap| heap.get_array_value(array_idx, idx))?;
+
+        todo!()
     }
 
     pub fn next_pc(&mut self) {

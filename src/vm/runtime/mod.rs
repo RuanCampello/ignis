@@ -3,7 +3,7 @@
 //! providing the dynamic state that the VM operates on.
 
 use thiserror::Error;
-mod heap;
+pub(in crate::vm) mod heap;
 mod method_area;
 
 #[derive(Error, Debug)]
@@ -13,4 +13,10 @@ pub(in crate::vm) enum RuntimeError {
 
     #[error("Attempted to access non-existing field: '{field}' of object of class '{classname}'")]
     InvalidObjectAcess { classname: String, field: String },
+
+    #[error("Invalid array entry size of: {0}")]
+    InvalidArrayEntrySize(usize),
+
+    #[error("Attempted to access non-existing entry on array with index: {0}")]
+    InvalidArrayAccess(usize),
 }
