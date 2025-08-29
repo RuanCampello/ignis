@@ -24,7 +24,7 @@ pub(in crate::vm::interpreter) fn execute(frame: StackFrame) -> Result<Vec<Value
 
             (
                 frame.current_classname.to_string(),
-                frame.bytecode[frame.pc],
+                frame.current_byte(),
                 frame.pc,
             )
         };

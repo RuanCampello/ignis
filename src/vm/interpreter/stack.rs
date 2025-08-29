@@ -1,6 +1,6 @@
 //! This module deals with operand stack, local-variables and stack frames.
 
-use crate::vm::VmError;
+use crate::vm::{VmError, interpreter::instructions::opcode::Opcode};
 use std::{fmt::Display, sync::Arc};
 use thiserror::Error;
 use tracing::trace;
@@ -18,7 +18,7 @@ pub(super) struct StackFrame {
     /// and to pass parameters to and receive results from other methods.
     operand_stack: Stack<ValueRef>,
     /// Shared reference to the bytecode of the method associated with this frame.
-    pub(super) bytecode: Arc<[u8]>,
+    bytecode: Arc<[u8]>,
     pub(super) current_classname: Arc<str>,
 }
 
@@ -90,12 +90,37 @@ impl StackFrame {
     pub(in crate::vm::interpreter) fn push_const<V: StackValue + Display>(
         &mut self,
         value: V,
-        name: &str,
+        code: Opcode,
     ) -> Result<()> {
         self.push(value)?;
         self.next_pc();
 
-        trace!("{name} -> {value}");
+        trace!("{code} -> {value}");
+
+        Ok(())
+    }
+
+    pub(in crate::vm::interpreter) fn positional_load<V: StackValue + Display>(
+        &mut self,
+        code: Opcode,
+    ) -> Result<()> {
+        let position = self.get_next_byte();
+        self.load::<V, _>(position, code)
+    }
+
+    pub(in crate::vm::interpreter) fn load<V: StackValue + Display, Pos: Display + Copy>(
+        &mut self,
+        position: Pos,
+        code: Opcode,
+    ) -> Result<()>
+    where
+        usize: From<Pos>,
+    {
+        let value: V = self.get(position.into());
+        self.push(value)?;
+        self.next_pc();
+
+        trace!("{code}{position} -> value={value}");
 
         Ok(())
     }
@@ -109,6 +134,15 @@ impl StackFrame {
             true => self.pc += step as usize,
             false => self.pc -= (-step) as usize,
         }
+    }
+
+    pub fn get_next_byte(&mut self) -> u8 {
+        self.next_pc();
+        self.current_byte()
+    }
+
+    pub fn current_byte(&self) -> u8 {
+        self.bytecode[self.pc]
     }
 
     pub fn pop<V: StackValue>(&mut self) -> Option<V> {

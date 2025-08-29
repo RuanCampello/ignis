@@ -3,7 +3,8 @@
 use crate::vm::interpreter::{StackFrames, stack::Result};
 
 mod constants;
-mod opcode;
+mod loads;
+pub(super) mod opcode;
 
 pub(super) fn process(code: u8, classname: &str, frames: &mut StackFrames) -> Result<()> {
     match code {

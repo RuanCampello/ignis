@@ -117,3 +117,67 @@ pub(crate) enum Opcode {
     /// Load a `short` from an array onto the operand stack.
     SALOAD,
 }
+
+impl std::fmt::Display for Opcode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            // constants
+            Opcode::NOP => write!(f, "NOP"),
+            Opcode::ACONST_NULL => write!(f, "ACONST_NULL"),
+            Opcode::ICONST_M1 => write!(f, "ICONST_M1"),
+            Opcode::ICONST_0 => write!(f, "ICONST_0"),
+            Opcode::ICONST_1 => write!(f, "ICONST_1"),
+            Opcode::ICONST_2 => write!(f, "ICONST_2"),
+            Opcode::ICONST_3 => write!(f, "ICONST_3"),
+            Opcode::ICONST_4 => write!(f, "ICONST_4"),
+            Opcode::ICONST_5 => write!(f, "ICONST_5"),
+            Opcode::LCONST_0 => write!(f, "LCONST_0"),
+            Opcode::LCONST_1 => write!(f, "LCONST_1"),
+            Opcode::FCONST_0 => write!(f, "FCONST_0"),
+            Opcode::FCONST_1 => write!(f, "FCONST_1"),
+            Opcode::FCONST_2 => write!(f, "FCONST_2"),
+            Opcode::DCONST_0 => write!(f, "DCONST_0"),
+            Opcode::DCONST_1 => write!(f, "DCONST_1"),
+            Opcode::BIPUSH => write!(f, "BIPUSH"),
+            Opcode::SIPUSH => write!(f, "SIPUSH"),
+            Opcode::LDC => write!(f, "LDC"),
+            Opcode::LDC_W => write!(f, "LDC_W"),
+            Opcode::LDC2_W => write!(f, "LDC2_W"),
+
+            // loads
+            Opcode::ILOAD => write!(f, "ILOAD"),
+            Opcode::LLOAD => write!(f, "LLOAD"),
+            Opcode::FLOAD => write!(f, "FLOAD"),
+            Opcode::DLOAD => write!(f, "DLOAD"),
+            Opcode::ALOAD => write!(f, "ALOAD"),
+            Opcode::ILOAD_0 => write!(f, "ILOAD_0"),
+            Opcode::ILOAD_1 => write!(f, "ILOAD_1"),
+            Opcode::ILOAD_2 => write!(f, "ILOAD_2"),
+            Opcode::ILOAD_3 => write!(f, "ILOAD_3"),
+            Opcode::LLOAD_0 => write!(f, "LLOAD_0"),
+            Opcode::LLOAD_1 => write!(f, "LLOAD_1"),
+            Opcode::LLOAD_2 => write!(f, "LLOAD_2"),
+            Opcode::LLOAD_3 => write!(f, "LLOAD_3"),
+            Opcode::FLOAD_0 => write!(f, "FLOAD_0"),
+            Opcode::FLOAD_1 => write!(f, "FLOAD_1"),
+            Opcode::FLOAD_2 => write!(f, "FLOAD_2"),
+            Opcode::FLOAD_3 => write!(f, "FLOAD_3"),
+            Opcode::DLOAD_0 => write!(f, "DLOAD_0"),
+            Opcode::DLOAD_1 => write!(f, "DLOAD_1"),
+            Opcode::DLOAD_2 => write!(f, "DLOAD_2"),
+            Opcode::DLOAD_3 => write!(f, "DLOAD_3"),
+            Opcode::ALOAD_0 => write!(f, "ALOAD_0"),
+            Opcode::ALOAD_1 => write!(f, "ALOAD_1"),
+            Opcode::ALOAD_2 => write!(f, "ALOAD_2"),
+            Opcode::ALOAD_3 => write!(f, "ALOAD_3"),
+            Opcode::IALOAD => write!(f, "IALOAD"),
+            Opcode::LALOAD => write!(f, "LALOAD"),
+            Opcode::FALOAD => write!(f, "FALOAD"),
+            Opcode::DALOAD => write!(f, "DALOAD"),
+            Opcode::AALOAD => write!(f, "AALOAD"),
+            Opcode::BALOAD => write!(f, "BALOAD"),
+            Opcode::CALOAD => write!(f, "CALOAD"),
+            Opcode::SALOAD => write!(f, "SALOAD"),
+        }
+    }
+}
