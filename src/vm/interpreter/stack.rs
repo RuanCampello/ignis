@@ -8,7 +8,7 @@ use tracing::trace;
 pub(super) struct StackFrame {
     /// Program counter. This indicates the address of the next bytecode instruction
     /// to be executed.
-    pc: usize,
+    pub(super) pc: usize,
     /// Stores the `pc` before a method invocation. If an exception in thrown during this given
     /// invoked method, this value is restored to the `pc` handle the exception.
     ex_pc: Option<usize>,
@@ -18,8 +18,8 @@ pub(super) struct StackFrame {
     /// and to pass parameters to and receive results from other methods.
     operand_stack: Stack<ValueRef>,
     /// Shared reference to the bytecode of the method associated with this frame.
-    bytecode: Arc<[u8]>,
-    current_classname: Arc<str>,
+    pub(super) bytecode: Arc<[u8]>,
+    pub(super) current_classname: Arc<str>,
 }
 
 pub(super) struct StackFrames {
@@ -51,8 +51,8 @@ pub(super) enum Value {
     Double(f64),
 }
 
-type Result<T> = std::result::Result<T, StackError>;
-pub type ValueRef = i32;
+pub(super) type Result<T> = std::result::Result<T, StackError>;
+pub(super) type ValueRef = i32;
 
 pub(super) trait StackValue: Sized + Default + Copy {
     /// Retrives the value at `index` from the stack frame.
@@ -163,12 +163,26 @@ impl StackFrames {
         top
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.frames.is_empty()
+    }
+
     fn pop(&mut self) -> Option<StackFrame> {
         self.frames.pop()
     }
 
     pub(super) fn last_mut(&mut self) -> Option<&mut StackFrame> {
         self.frames.last_mut()
+    }
+
+    pub(super) fn last(&self) -> Option<&StackFrame> {
+        self.frames.last()
+    }
+}
+
+impl From<Vec<StackFrame>> for StackFrames {
+    fn from(frames: Vec<StackFrame>) -> Self {
+        Self { frames }
     }
 }
 
