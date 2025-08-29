@@ -332,6 +332,6 @@ mod tests {
         assert_eq!(frame.push(0.0).unwrap_err(), StackError::ExceededStackSize);
 
         assert_eq!(frame.pop(), Some(value3));
-        assert!(frame.push(0.0).is_ok())
+        assert!(frame.push(0.0f32).is_ok())
     }
 }
