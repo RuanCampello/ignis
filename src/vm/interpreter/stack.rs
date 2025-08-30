@@ -145,6 +145,28 @@ impl StackFrame {
         Ok(())
     }
 
+    pub(in crate::vm::interpreter) fn positional_store<V: StackValue + Display>(
+        &mut self,
+        code: Opcode,
+    ) {
+        let position = self.get_next_byte();
+        self.store::<V, _>(position, code)
+    }
+
+    pub(in crate::vm::interpreter) fn store<V: StackValue + Display, Pos: Display + Copy>(
+        &mut self,
+        position: Pos,
+        code: Opcode,
+    ) where
+        usize: From<Pos>,
+    {
+        let value: V = self.pop().unwrap();
+        self.set(position.into(), value);
+        self.next_pc();
+
+        trace!("{code}{position} -> {value}");
+    }
+
     pub fn next_pc(&mut self) {
         self.step_pc(1);
     }

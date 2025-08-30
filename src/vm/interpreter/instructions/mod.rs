@@ -5,6 +5,7 @@ use crate::vm::{Result, interpreter::StackFrames};
 mod constants;
 mod loads;
 pub(super) mod opcode;
+mod stores;
 
 pub(super) fn process(code: u8, classname: &str, frames: &mut StackFrames) -> Result<()> {
     match code {
