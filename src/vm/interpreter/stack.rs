@@ -148,7 +148,7 @@ impl StackFrame {
     pub(in crate::vm::interpreter) fn positional_store<V: StackValue + Display>(
         &mut self,
         code: Opcode,
-    ) {
+    ) -> super::Result<()> {
         let position = self.get_next_byte();
         self.store::<V, _>(position, code)
     }
@@ -157,7 +157,8 @@ impl StackFrame {
         &mut self,
         position: Pos,
         code: Opcode,
-    ) where
+    ) -> super::Result<()>
+    where
         usize: From<Pos>,
     {
         let value: V = self.pop().unwrap();
@@ -165,6 +166,24 @@ impl StackFrame {
         self.next_pc();
 
         trace!("{code}{position} -> {value}");
+        Ok(())
+    }
+
+    pub(in crate::vm::interpreter) fn store_array<V: Display + StackValue>(
+        &mut self,
+        code: Opcode,
+    ) -> super::Result<()> {
+        let idx = self.pop().unwrap();
+        let array_idx = self.pop().unwrap();
+        let value = with_heap(|heap| heap.get_array_value(array_idx, idx))?;
+
+        let value: V = V::from_slice(&value);
+
+        self.push(value);
+        self.next_pc();
+
+        trace!("{code} -> array_idx={array_idx}, index={idx}, value={value}");
+        Ok(())
     }
 
     pub fn next_pc(&mut self) {

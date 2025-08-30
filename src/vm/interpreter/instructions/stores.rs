@@ -39,7 +39,12 @@ pub(in crate::vm::interpreter::instructions) fn process(
         ASTORE_0 | ASTORE_1 | ASTORE_2 | ASTORE_3 => {
             frame.store::<i32, _>(code - ASTORE_0 as u8, opcode)
         }
+
+        IALOAD | AASTORE | BASTORE | CASTORE | SASTORE => frame.store_array::<i32>(opcode),
+        LASTORE => frame.store_array::<i64>(opcode),
+        FASTORE => frame.store_array::<f32>(opcode),
+        DASTORE => frame.store_array::<f64>(opcode),
+
         _ => unreachable!("Tried to store {code} code"),
     }
-    todo!()
 }
