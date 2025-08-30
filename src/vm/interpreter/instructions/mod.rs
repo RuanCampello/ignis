@@ -16,6 +16,7 @@ pub(super) fn process(code: u8, classname: &str, frames: &mut StackFrames) -> Re
         21..=53 => loads::process(code, frames),
         54..=86 => stores::process(code, frames),
         87..=95 => stack::process(code, frames),
+        96..=132 => math::process(code, frames),
         _ => unreachable!("Tried to process: {code} code"),
     }
 }
