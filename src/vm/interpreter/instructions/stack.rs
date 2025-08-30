@@ -1,5 +1,3 @@
-use tracing::trace;
-
 use crate::vm::{
     Result,
     interpreter::{
@@ -8,6 +6,7 @@ use crate::vm::{
         stack::{StackError, StackValue},
     },
 };
+use tracing::trace;
 
 pub(in crate::vm::interpreter::instructions) fn process(
     code: u8,

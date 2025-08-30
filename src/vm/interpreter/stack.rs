@@ -186,6 +186,24 @@ impl StackFrame {
         Ok(())
     }
 
+    pub(in crate::vm::interpreter) fn binary_op<
+        A: StackValue + Copy + Display,
+        B: StackValue + Copy + Display,
+    >(
+        &mut self,
+        op: impl Fn(A, B) -> A,
+        code: Opcode,
+    ) -> super::Result<()> {
+        let b: B = self.pop().ok_or(StackError::EmptyStack)?;
+        let a: A = self.pop().ok_or(StackError::EmptyStack)?;
+
+        let value = op(a, b);
+
+        self.push(value)?;
+        trace!("{code} -> ({a}, {b}) -> {value}");
+        Ok(())
+    }
+
     pub fn next_pc(&mut self) {
         self.step_pc(1);
     }

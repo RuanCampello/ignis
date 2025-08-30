@@ -4,6 +4,7 @@ use crate::vm::{Result, interpreter::StackFrames};
 
 mod constants;
 mod loads;
+mod math;
 mod stack;
 mod stores;
 
