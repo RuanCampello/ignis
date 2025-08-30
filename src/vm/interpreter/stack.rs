@@ -93,7 +93,7 @@ impl StackFrame {
         &mut self,
         value: V,
         code: Opcode,
-    ) -> Result<()> {
+    ) -> super::Result<()> {
         self.push(value)?;
         self.next_pc();
 
@@ -105,7 +105,7 @@ impl StackFrame {
     pub(in crate::vm::interpreter) fn positional_load<V: StackValue + Display>(
         &mut self,
         code: Opcode,
-    ) -> Result<()> {
+    ) -> super::Result<()> {
         let position = self.get_next_byte();
         self.load::<V, _>(position, code)
     }
@@ -114,7 +114,7 @@ impl StackFrame {
         &mut self,
         position: Pos,
         code: Opcode,
-    ) -> Result<()>
+    ) -> super::Result<()>
     where
         usize: From<Pos>,
     {
@@ -135,8 +135,14 @@ impl StackFrame {
         let array_idx: i32 = self.pop().unwrap();
 
         let value = with_heap(|heap| heap.get_array_value(array_idx, idx))?;
+        let value: V = V::from_slice(&value);
 
-        todo!()
+        self.push(value)?;
+        self.next_pc();
+
+        trace!("{code} -> array_idx={array_idx}, index={idx}, value={value}");
+
+        Ok(())
     }
 
     pub fn next_pc(&mut self) {

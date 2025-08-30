@@ -1,7 +1,10 @@
 use tracing::trace;
 
 use super::opcode::Opcode::{self, *};
-use crate::vm::interpreter::stack::{Result, StackError, StackFrames, StackValue};
+use crate::vm::{
+    Result,
+    interpreter::stack::{StackError, StackFrames, StackValue},
+};
 
 pub(in crate::vm::interpreter::instructions) fn process(
     code: u8,

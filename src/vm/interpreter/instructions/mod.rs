@@ -1,6 +1,6 @@
 //! Java byte code instructions definition and processing.
 
-use crate::vm::interpreter::{StackFrames, stack::Result};
+use crate::vm::{Result, interpreter::StackFrames};
 
 mod constants;
 mod loads;
