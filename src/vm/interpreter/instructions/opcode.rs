@@ -150,6 +150,17 @@ pub(crate) enum Opcode {
     BASTORE,
     CASTORE,
     SASTORE,
+
+    // stack
+    POP,
+    POP2,
+    DUP,
+    DUP_X1,
+    DUP_X2,
+    DUP2,
+    DUP2_X1,
+    DUP2_X2,
+    SWAP,
 }
 
 impl std::fmt::Display for Opcode {
@@ -247,6 +258,17 @@ impl std::fmt::Display for Opcode {
             Opcode::BASTORE => write!(f, "BASTORE"),
             Opcode::CASTORE => write!(f, "CASTORE"),
             Opcode::SASTORE => write!(f, "SASTORE"),
+
+            // stack
+            Opcode::POP => write!(f, "POP"),
+            Opcode::POP2 => write!(f, "POP2"),
+            Opcode::DUP => write!(f, "DUP"),
+            Opcode::DUP_X1 => write!(f, "DUP_X1"),
+            Opcode::DUP_X2 => write!(f, "DUP_X2"),
+            Opcode::DUP2 => write!(f, "DUP2"),
+            Opcode::DUP2_X1 => write!(f, "DUP2_X1"),
+            Opcode::DUP2_X2 => write!(f, "DUP2_X2"),
+            Opcode::SWAP => write!(f, "SWAP"),
         }
     }
 }
