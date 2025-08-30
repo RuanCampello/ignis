@@ -204,6 +204,19 @@ impl StackFrame {
         Ok(())
     }
 
+    pub(in crate::vm::interpreter) fn unary_op<V: StackValue + Display>(
+        &mut self,
+        op: impl Fn(V) -> V,
+        code: Opcode,
+    ) -> super::Result<()> {
+        let value: V = self.pop().unwrap();
+        let res = op(value);
+        self.next_pc();
+
+        trace!("{code} -> ({value} -> {res})");
+        Ok(())
+    }
+
     pub(in crate::vm::interpreter) fn increment<I, C>(
         &mut self,
         index: impl FnOnce(&mut Self) -> I,

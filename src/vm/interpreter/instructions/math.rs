@@ -1,4 +1,4 @@
-use std::ops::Mul;
+use std::ops::{Mul, Neg};
 
 use crate::vm::{
     Result,
@@ -56,6 +56,11 @@ pub(in crate::vm::interpreter::instructions) fn process(
             |a: i64, b: i32| (a as u64 >> (b as u32 & MASK)) as i64,
             opcode,
         ),
+
+        INEG => frame.unary_op(|a: i32| a.wrapping_neg(), opcode),
+        LNEG => frame.unary_op(|a: i64| a.wrapping_neg(), opcode),
+        FNEG => frame.unary_op(|a: f32| a.neg(), opcode),
+        DNEG => frame.unary_op(|a: f64| a.neg(), opcode),
 
         IAND => frame.binary_op(|a: i32, b: i32| a & b, opcode),
         LAND => frame.binary_op(|a: i64, b: i64| a & b, opcode),
