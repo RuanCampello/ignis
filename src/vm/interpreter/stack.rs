@@ -64,6 +64,8 @@ pub(super) trait StackValue: Sized + Default + Copy {
     fn push_onto(&self, frame: &mut StackFrame) -> Result<()>;
     /// Pop the value from the operand stack.
     fn pop_from(frame: &mut StackFrame) -> Result<Self>;
+
+    fn from_slice(value: &[ValueRef]) -> Self;
 }
 
 impl StackFrame {
@@ -128,11 +130,11 @@ impl StackFrame {
     pub(in crate::vm::interpreter) fn load_array<V: StackValue + Display>(
         &mut self,
         code: Opcode,
-    ) -> Result<()> {
+    ) -> super::Result<()> {
         let idx: i32 = self.pop().unwrap();
         let array_idx: i32 = self.pop().unwrap();
 
-        // let value = with_heap(|heap| heap.get_array_value(array_idx, idx))?;
+        let value = with_heap(|heap| heap.get_array_value(array_idx, idx))?;
 
         todo!()
     }
@@ -279,6 +281,10 @@ impl StackValue for i32 {
     fn pop_from(frame: &mut StackFrame) -> Result<Self> {
         frame.pop_ref()
     }
+
+    fn from_slice(value: &[ValueRef]) -> Self {
+        value[0]
+    }
 }
 
 impl StackValue for i64 {
@@ -311,6 +317,11 @@ impl StackValue for i64 {
 
         Ok(from_i32_to_i64(l, h))
     }
+
+    fn from_slice(value: &[ValueRef]) -> Self {
+        let (h, l) = (value[0], value[1]);
+        from_i32_to_i64(l, h)
+    }
 }
 
 impl StackValue for f32 {
@@ -331,6 +342,11 @@ impl StackValue for f32 {
         let v: i32 = frame.pop().ok_or(StackError::EmptyStack)?;
         Ok(f32::from_bits(v as u32))
     }
+
+    fn from_slice(value: &[ValueRef]) -> Self {
+        let value: i32 = StackValue::from_slice(value);
+        f32::from_bits(value as u32)
+    }
 }
 
 impl StackValue for f64 {
@@ -350,6 +366,11 @@ impl StackValue for f64 {
     fn pop_from(frame: &mut StackFrame) -> Result<Self> {
         let v: i64 = frame.pop().ok_or(StackError::EmptyStack)?;
         Ok(f64::from_bits(v as u64))
+    }
+
+    fn from_slice(value: &[ValueRef]) -> Self {
+        let value: i64 = StackValue::from_slice(value);
+        f64::from_bits(value as u64)
     }
 }
 
