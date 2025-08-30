@@ -63,6 +63,12 @@ pub(in crate::vm::interpreter::instructions) fn process(
         LOR => frame.binary_op(|a: i64, b: i64| a | b, opcode),
         IXOR => frame.binary_op(|a: i32, b: i32| a ^ b, opcode),
         LXOR => frame.binary_op(|a: i64, b: i64| a ^ b, opcode),
+
+        IINC => frame.increment(
+            |f| f.get_next_byte() as usize,
+            |f| f.get_next_byte() as i8 as i32,
+            opcode,
+        ),
         _ => unreachable!("Tried perform math operation with {code} code"),
     }
 }

@@ -204,6 +204,28 @@ impl StackFrame {
         Ok(())
     }
 
+    pub(in crate::vm::interpreter) fn increment<I, C>(
+        &mut self,
+        index: impl FnOnce(&mut Self) -> I,
+        constant: impl FnOnce(&mut Self) -> C,
+        code: Opcode,
+    ) -> super::Result<()>
+    where
+        usize: From<I>,
+        i32: From<C>,
+    {
+        let index: usize = index(self).into();
+        let constant: i32 = constant(self).into();
+
+        let curr: i32 = self.get(index);
+        let next = curr.wrapping_add(constant);
+        self.set(index, next);
+        self.next_pc();
+
+        trace!("{code} -> {curr} + {constant} = {next}");
+        Ok(())
+    }
+
     pub fn next_pc(&mut self) {
         self.step_pc(1);
     }
