@@ -2,6 +2,7 @@
 
 use crate::vm::{Result, interpreter::StackFrames};
 
+mod comparisons;
 mod constants;
 mod loads;
 mod math;

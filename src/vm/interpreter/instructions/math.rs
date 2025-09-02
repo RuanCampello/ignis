@@ -10,6 +10,8 @@ use crate::vm::{
 };
 use tracing::trace;
 
+/// Binary mask stated by JVM spec for handling bit operations.
+/// Reference: https://docs.oracle.com/javase/specs/jvms/se24/html/jvms-6.html
 const MASK: u32 = 0x3f;
 
 pub(in crate::vm::interpreter::instructions) fn process(

@@ -239,6 +239,23 @@ impl StackFrame {
         Ok(())
     }
 
+    pub(in crate::vm::interpreter) fn unary_branch(
+        &mut self,
+        op: impl Fn(ValueRef) -> bool,
+        code: Opcode,
+    ) {
+        let value = self.pop().unwrap();
+        let offset = {
+            let f = self.bytecode[self.pc + 1] as u16;
+            let s = self.bytecode[self.pc + 2] as u16;
+
+            ((f << 8) | s) as i16
+        };
+
+        self.step_pc(if op(value) { offset } else { 3 });
+        trace!("{code} -> {value}, {offset}")
+    }
+
     pub fn next_pc(&mut self) {
         self.step_pc(1);
     }
