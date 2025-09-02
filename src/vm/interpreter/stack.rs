@@ -68,6 +68,32 @@ pub(super) trait StackValue: Sized + Default + Copy {
     fn from_slice(value: &[ValueRef]) -> Self;
 }
 
+macro_rules! maybe_nan {
+    (nan: $($nan_type:ty),*; not_nan: $($not_nan_type:ty),*) => {
+        pub(super) trait MaybeNan: Copy {
+            fn can_be_nan(&self) -> bool;
+            fn is_nan(&self) -> bool;
+        }
+        $(
+            impl MaybeNan for $nan_type {
+                fn can_be_nan(&self) -> bool { true }
+                fn is_nan(&self) -> bool { <$nan_type>::is_nan(*self) }
+            }
+        )*
+        $(
+            impl MaybeNan for $not_nan_type {
+                fn can_be_nan(&self) -> bool { false }
+                fn is_nan(&self) -> bool { false }
+            }
+        )*
+    };
+}
+
+maybe_nan!(
+    nan: f32, f64;
+    not_nan: i32, i64
+);
+
 impl StackFrame {
     pub fn new(
         variables_size: usize,
@@ -279,6 +305,28 @@ impl StackFrame {
 
         trace!("{code} -> {from} -> {to}");
         Ok(())
+    }
+
+    pub(in crate::vm::interpreter) fn compare<V>(&mut self, nan_ord: i32)
+    where
+        V: StackValue + Copy + MaybeNan + PartialOrd,
+    {
+        use std::cmp::Ordering;
+
+        let value_sec: V = self.pop().unwrap();
+        let value: V = self.pop().unwrap();
+
+        let result = match value.is_nan() || value_sec.is_nan() {
+            true => nan_ord,
+            _ => match value.partial_cmp(&value_sec).unwrap() {
+                Ordering::Greater => 1,
+                Ordering::Equal => 0,
+                Ordering::Less => -1,
+            },
+        };
+
+        self.push(result);
+        self.next_pc();
     }
 
     pub fn next_pc(&mut self) {

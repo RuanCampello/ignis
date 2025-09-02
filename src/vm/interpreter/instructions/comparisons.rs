@@ -15,6 +15,12 @@ pub(in crate::vm::interpreter::instructions) fn process(
 
     let opcode = Opcode::from(code);
     match opcode {
+        LCMP => frame.compare::<i64>(0),
+        FCMPL => frame.compare::<f32>(-1),
+        DCMPL => frame.compare::<f32>(-1),
+        DCMPG => frame.compare::<f64>(1),
+        FCMPG => frame.compare::<f32>(1),
+
         IFEQ => frame.unary_branch(|a| a == 0, opcode),
         IFNE => frame.unary_branch(|a| a != 0, opcode),
         IFLT => frame.unary_branch(|a| a < 0, opcode),
