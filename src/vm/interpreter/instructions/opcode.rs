@@ -201,8 +201,25 @@ pub(crate) enum Opcode {
     LXOR,
     IINC,
 
+    // conversion
+    I2L,
+    I2F,
+    I2D,
+    L2I,
+    L2F,
+    L2D,
+    F2I,
+    F2L,
+    F2D,
+    D2I,
+    D2L,
+    D2F,
+    I2B,
+    I2C,
+    I2S,
+
     // comparations
-    LCMP = 148,
+    LCMP,
     FCMPL,
     FCMPG,
     DCMPL,
@@ -368,6 +385,23 @@ impl std::fmt::Display for Opcode {
             Opcode::IXOR => write!(f, "IXOR"),
             Opcode::LXOR => write!(f, "LXOR"),
             Opcode::IINC => write!(f, "IINC"),
+
+            // conversions
+            Opcode::I2L => write!(f, "I2L"),
+            Opcode::I2F => write!(f, "I2F"),
+            Opcode::I2D => write!(f, "I2D"),
+            Opcode::L2I => write!(f, "L2I"),
+            Opcode::L2F => write!(f, "L2F"),
+            Opcode::L2D => write!(f, "L2D"),
+            Opcode::F2I => write!(f, "F2I"),
+            Opcode::F2L => write!(f, "F2L"),
+            Opcode::F2D => write!(f, "F2D"),
+            Opcode::D2I => write!(f, "D2I"),
+            Opcode::D2L => write!(f, "D2L"),
+            Opcode::D2F => write!(f, "D2F"),
+            Opcode::I2B => write!(f, "I2B"),
+            Opcode::I2C => write!(f, "I2C"),
+            Opcode::I2S => write!(f, "I2S"),
 
             // comparations
             Opcode::LCMP => write!(f, "LCMP"),
