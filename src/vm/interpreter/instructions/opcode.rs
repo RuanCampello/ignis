@@ -200,6 +200,27 @@ pub(crate) enum Opcode {
     IXOR,
     LXOR,
     IINC,
+
+    // comparations
+    LCMP = 148,
+    FCMPL,
+    FCMPG,
+    DCMPL,
+    DCMPG,
+    IFEQ,
+    IFNE,
+    IFLT,
+    IFGE,
+    IFGT,
+    IFLE,
+    IF_ICMPEQ,
+    IF_ICMPNE,
+    IF_ICMPLT,
+    IF_ICMPGE,
+    IF_ICMPGT,
+    IF_ICMPLE,
+    IF_ACMPEQ,
+    IF_ACMPNE,
 }
 
 impl std::fmt::Display for Opcode {
@@ -347,6 +368,27 @@ impl std::fmt::Display for Opcode {
             Opcode::IXOR => write!(f, "IXOR"),
             Opcode::LXOR => write!(f, "LXOR"),
             Opcode::IINC => write!(f, "IINC"),
+
+            // comparations
+            Opcode::LCMP => write!(f, "LCMP"),
+            Opcode::FCMPL => write!(f, "FCMPL"),
+            Opcode::FCMPG => write!(f, "FCMPG"),
+            Opcode::DCMPL => write!(f, "DCMPL"),
+            Opcode::DCMPG => write!(f, "DCMPG"),
+            Opcode::IFEQ => write!(f, "IFEQ"),
+            Opcode::IFNE => write!(f, "IFNE"),
+            Opcode::IFLT => write!(f, "IFLT"),
+            Opcode::IFGE => write!(f, "IFGE"),
+            Opcode::IFGT => write!(f, "IFGT"),
+            Opcode::IFLE => write!(f, "IFLE"),
+            Opcode::IF_ICMPEQ => write!(f, "IF_ICMPEQ"),
+            Opcode::IF_ICMPNE => write!(f, "IF_ICMPNE"),
+            Opcode::IF_ICMPLT => write!(f, "IF_ICMPLT"),
+            Opcode::IF_ICMPGE => write!(f, "IF_ICMPGE"),
+            Opcode::IF_ICMPGT => write!(f, "IF_ICMPGT"),
+            Opcode::IF_ICMPLE => write!(f, "IF_ICMPLE"),
+            Opcode::IF_ACMPEQ => write!(f, "IF_ACMPEQ"),
+            Opcode::IF_ACMPNE => write!(f, "IF_ACMPNE"),
         }
     }
 }
