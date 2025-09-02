@@ -264,6 +264,23 @@ impl StackFrame {
         trace!("{code} -> ({value}, {value_sec}), {offset}")
     }
 
+    pub(in crate::vm::interpreter) fn convert<
+        F: StackValue + Copy + Display,
+        T: StackValue + Copy + Display,
+    >(
+        &mut self,
+        conversion: impl Fn(F) -> T,
+        code: Opcode,
+    ) -> super::Result<()> {
+        let from: F = self.pop().unwrap();
+        let to = conversion(from);
+        self.push(to);
+        self.next_pc();
+
+        trace!("{code} -> {from} -> {to}");
+        Ok(())
+    }
+
     pub fn next_pc(&mut self) {
         self.step_pc(1);
     }

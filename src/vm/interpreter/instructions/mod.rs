@@ -4,6 +4,7 @@ use crate::vm::{Result, interpreter::StackFrames};
 
 mod comparisons;
 mod constants;
+mod conversions;
 mod loads;
 mod math;
 mod stack;
@@ -18,6 +19,8 @@ pub(super) fn process(code: u8, classname: &str, frames: &mut StackFrames) -> Re
         54..=86 => stores::process(code, frames),
         87..=95 => stack::process(code, frames),
         96..=132 => math::process(code, frames),
+        133..=147 => conversions::process(code, frames),
+        148..=166 => comparisons::process(code, frames),
         _ => unreachable!("Tried to process: {code} code"),
     }
 }
