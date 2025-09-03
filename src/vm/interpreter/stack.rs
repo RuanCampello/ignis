@@ -5,7 +5,7 @@ use std::{fmt::Display, sync::Arc};
 use thiserror::Error;
 use tracing::trace;
 
-pub(super) struct StackFrame {
+pub(in crate::vm) struct StackFrame {
     /// Program counter. This indicates the address of the next bytecode instruction
     /// to be executed.
     pub(super) pc: usize,
@@ -54,7 +54,7 @@ pub(super) enum Value {
 pub(super) type Result<T> = std::result::Result<T, StackError>;
 pub(super) type ValueRef = i32;
 
-pub(super) trait StackValue: Sized + Default + Copy {
+pub(in crate::vm) trait StackValue: Sized + Default + Copy {
     /// Retrives the value at `index` from the stack frame.
     fn get(index: usize, frame: &StackFrame) -> Self;
     /// Set the value at `index` in the stack frame.

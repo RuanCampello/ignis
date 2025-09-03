@@ -4,12 +4,15 @@
 
 use thiserror::Error;
 pub(in crate::vm) mod heap;
-mod method_area;
+pub(in crate::vm) mod method_area;
 
 #[derive(Error, Debug)]
 pub(in crate::vm) enum RuntimeError {
     #[error("METHOD_AREA was already initialised")]
     MethodAreaInitialised,
+
+    #[error("Method with signature {0} does not exists")]
+    MethodNotFound(String),
 
     #[error("Attempted to access non-existing field: '{field}' of object of class '{classname}'")]
     InvalidObjectAcess { classname: String, field: String },

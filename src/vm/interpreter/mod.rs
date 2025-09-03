@@ -2,9 +2,12 @@ use thiserror::Error;
 
 use crate::vm::{
     Result, VmError,
-    interpreter::stack::{StackError, StackFrame, StackFrames, ValueRef},
+    interpreter::stack::{StackError, StackFrames, ValueRef},
 };
 
+pub(in crate::vm) use stack::StackFrame;
+
+mod executor;
 mod instructions;
 mod stack;
 

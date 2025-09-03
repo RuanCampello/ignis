@@ -1,4 +1,4 @@
-use crate::vm::{Result, VmError, runtime::RuntimeError};
+use crate::vm::{Result, VmError, interpreter::StackFrame, runtime::RuntimeError};
 use dashmap::DashMap;
 use indexmap::IndexMap;
 use once_cell::sync::{Lazy, OnceCell};
@@ -23,8 +23,8 @@ static PRIMITIVE_TYPE: Lazy<HashMap<&str, &str>> = {
 };
 
 #[derive(Debug)]
-pub(in crate::vm::runtime) struct MethodArea<'c> {
-    classes: DashMap<String, Class<'c>>,
+pub(in crate::vm) struct MethodArea {
+    classes: DashMap<String, Class>,
     reflection: DashMap<i32, String>,
     thread_id: OnceCell<i32>,
     /// Thread group created by the VM.
@@ -32,18 +32,18 @@ pub(in crate::vm::runtime) struct MethodArea<'c> {
 }
 
 #[derive(Debug)]
-pub(in crate::vm::runtime) struct Class<'c> {
-    methods: IndexMap<String, Arc<Method<'c>>>,
+pub(in crate::vm) struct Class {
+    methods: IndexMap<String, Arc<Method>>,
 }
 
 #[derive(Debug)]
-pub(in crate::vm::runtime) struct Method<'m> {
-    classname: Arc<&'m str>,
-    signature: Arc<&'m str>,
+pub(in crate::vm) struct Method {
+    classname: Arc<str>,
+    signature: Arc<str>,
     /// Indicates wheter a method is native or not.
     native: bool,
 
-    annotations: Option<&'m [u8]>,
+    annotations: Option<Vec<u8>>,
 }
 
 #[derive(Debug)]
@@ -60,7 +60,7 @@ where
     callback(&area)
 }
 
-impl<'m> MethodArea<'m> {
+impl MethodArea {
     const PUBLIC: u16 = 0x0001;
     const ABSTRACT: u16 = 0x0400;
     const FINAL: u16 = 0x0010;
@@ -83,7 +83,11 @@ impl<'m> MethodArea<'m> {
         })
     }
 
-    fn generate_classes<'c>() -> DashMap<String, Class<'c>> {
+    pub fn get(&self, classname: &str) -> Result<Arc<Class>> {
+        todo!()
+    }
+
+    fn generate_classes<'c>() -> DashMap<String, Class> {
         PRIMITIVE_TYPE
             .keys()
             .map(|class_name| (class_name.to_string(), Self::generate_class(class_name)))
@@ -94,6 +98,31 @@ impl<'m> MethodArea<'m> {
         Class {
             methods: IndexMap::new(),
         }
+    }
+}
+
+impl Class {
+    pub fn get_method(&self, signature: &str) -> Result<Arc<Method>> {
+        self.get_full_method(signature)
+            .and_then(|(_, method)| Some(method))
+            .ok_or(RuntimeError::MethodNotFound(signature.into()).into())
+    }
+
+    fn get_full_method(&self, signature: &str) -> Option<(usize, Arc<Method>)> {
+        self.methods
+            .get_full(signature)
+            .map(|(idx, _, method)| (idx, method.clone()))
+            .or_else(|| {
+                self.methods
+                    .get_full(signature.split(":").next()?)
+                    .map(|(idx, _, method)| (idx, method.clone()))
+            })
+    }
+}
+
+impl Method {
+    pub fn new_frame(&self) -> Result<StackFrame> {
+        todo!()
     }
 }
 
