@@ -69,20 +69,17 @@ pub(super) trait StackValue: Sized + Default + Copy {
 }
 
 macro_rules! maybe_nan {
-    (nan: $($nan_type:ty),*; not_nan: $($not_nan_type:ty),*) => {
+    (nan: $($nan_type:ty),*; not_nan: $($not_nan_type:ty),*;) => {
         pub(super) trait MaybeNan: Copy {
-            fn can_be_nan(&self) -> bool;
             fn is_nan(&self) -> bool;
         }
         $(
             impl MaybeNan for $nan_type {
-                fn can_be_nan(&self) -> bool { true }
                 fn is_nan(&self) -> bool { <$nan_type>::is_nan(*self) }
             }
         )*
         $(
             impl MaybeNan for $not_nan_type {
-                fn can_be_nan(&self) -> bool { false }
                 fn is_nan(&self) -> bool { false }
             }
         )*
@@ -91,7 +88,7 @@ macro_rules! maybe_nan {
 
 maybe_nan!(
     nan: f32, f64;
-    not_nan: i32, i64
+    not_nan: i32, i64;
 );
 
 impl StackFrame {
@@ -307,9 +304,13 @@ impl StackFrame {
         Ok(())
     }
 
-    pub(in crate::vm::interpreter) fn compare<V>(&mut self, nan_ord: i32)
+    pub(in crate::vm::interpreter) fn compare<V>(
+        &mut self,
+        nan_ord: i32,
+        code: Opcode,
+    ) -> super::Result<()>
     where
-        V: StackValue + Copy + MaybeNan + PartialOrd,
+        V: StackValue + Display + Copy + MaybeNan + PartialOrd,
     {
         use std::cmp::Ordering;
 
@@ -325,8 +326,11 @@ impl StackFrame {
             },
         };
 
-        self.push(result);
+        self.push(result)?;
         self.next_pc();
+
+        trace!("{code} -> {value} | {value_sec}");
+        Ok(())
     }
 
     pub fn next_pc(&mut self) {
