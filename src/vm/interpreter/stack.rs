@@ -268,7 +268,8 @@ impl StackFrame {
         code: Opcode,
     ) {
         let value = self.pop().unwrap();
-        let offset = ((self.get_byte(self.pc + 1) << 8) | self.get_byte(self.pc + 2)) as i16;
+        let offset =
+            (((self.get_byte(self.pc + 1) as i16) << 8) | self.get_byte(self.pc + 2) as i16);
 
         self.step_pc(if op(value) { offset } else { 3 });
         trace!("{code} -> {value}, {offset}")
@@ -281,7 +282,8 @@ impl StackFrame {
     ) {
         let value_sec = self.pop().unwrap();
         let value = self.pop().unwrap();
-        let offset = ((self.get_byte(self.pc + 1) << 8) | self.get_byte(self.pc + 2)) as i16;
+        let offset =
+            (((self.get_byte(self.pc + 1) as i16) << 8) | self.get_byte(self.pc + 2) as i16);
 
         self.step_pc(if op(value, value_sec) { offset } else { 3 });
         trace!("{code} -> ({value}, {value_sec}), {offset}")
