@@ -32,7 +32,7 @@ pub(super) struct Stack<T> {
 }
 
 #[derive(Error, Debug, PartialEq)]
-pub(in crate::vm) enum StackError {
+pub enum StackError {
     #[error("Exceeded max stack size")]
     ExceededStackSize,
 

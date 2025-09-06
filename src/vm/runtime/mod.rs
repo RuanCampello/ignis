@@ -7,7 +7,7 @@ pub(in crate::vm) mod heap;
 pub(in crate::vm) mod method_area;
 
 #[derive(Error, Debug)]
-pub(in crate::vm) enum RuntimeError {
+pub enum RuntimeError {
     #[error("METHOD_AREA was already initialised")]
     MethodAreaInitialised,
 

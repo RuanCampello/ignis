@@ -20,7 +20,7 @@ struct Args {
 }
 
 #[derive(Error, Debug)]
-enum VmError {
+pub enum VmError {
     #[error(transparent)]
     Runtime(#[from] runtime::RuntimeError),
     #[error(transparent)]
@@ -31,7 +31,7 @@ pub(in crate::vm) type Result<T> = std::result::Result<T, VmError>;
 
 /// Launches the VM.
 /// This initialise the JVM itself, loading the given class and invoking it `main` function.
-fn run(path: &Path) -> Result<()> {
+pub fn run(path: &Path) -> Result<()> {
     todo!()
 }
 
