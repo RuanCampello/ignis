@@ -24,7 +24,7 @@ static PRIMITIVE_TYPE: Lazy<HashMap<&str, &str>> = {
 
 #[derive(Debug)]
 pub(in crate::vm) struct MethodArea {
-    classes: DashMap<String, Class>,
+    classes: DashMap<String, Arc<Class>>,
     reflection: DashMap<i32, String>,
     thread_id: OnceCell<i32>,
     /// Thread group created by the VM.
@@ -92,14 +92,40 @@ impl MethodArea {
     }
 
     pub fn get(&self, classname: &str) -> Result<Arc<Class>> {
+        if let Some(class) = self.classes.get(classname) {
+            return Ok(Arc::clone(class.value()));
+        }
+
+        if classname.starts_with('[') {
+            let class = Self::generate_array_class(classname);
+            self.classes
+                .insert(classname.to_string(), Arc::clone(&class));
+
+            return Ok(class);
+        }
+
+        // TODO: load from file
         todo!()
     }
 
-    fn generate_classes<'c>() -> DashMap<String, Class> {
+    fn generate_classes() -> DashMap<String, Arc<Class>> {
         PRIMITIVE_TYPE
             .keys()
-            .map(|class_name| (class_name.to_string(), Self::generate_class(class_name)))
+            .map(|class_name| {
+                (
+                    class_name.to_string(),
+                    Arc::new(Self::generate_class(class_name)),
+                )
+            })
             .collect()
+    }
+
+    fn generate_array_class(classname: &str) -> Arc<Class> {
+        let (internal, external) = internal_and_external_names(classname);
+
+        Arc::new(Class {
+            methods: IndexMap::new(),
+        })
     }
 
     fn generate_class(classname: &str) -> Class {
@@ -150,5 +176,25 @@ impl FieldValue {
     pub(super) fn value(&self) -> Result<Vec<i32>> {
         let guard = self.value.read();
         Ok(guard.clone())
+    }
+}
+
+fn internal_and_external_names(string: &str) -> (String, String) {
+    const SYNTH_CLASS_DELIM: &str = "#";
+    if let Some(external) = PRIMITIVE_TYPE.get(string) {
+        return (string.to_string(), external.to_string());
+    }
+
+    match string.rsplit_once(SYNTH_CLASS_DELIM) {
+        Some((base, suffix)) => {
+            let internal = format!("{}/{}", base, suffix);
+            let external = format!("{}/{}", base.replace('/', "."), suffix);
+            (internal, external)
+        }
+        None => {
+            let internal = string.to_string();
+            let external = string.replace('/', ".");
+            (internal, external)
+        }
     }
 }
