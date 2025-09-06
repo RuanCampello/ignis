@@ -11,7 +11,10 @@ use std::path::Path;
 use thiserror::Error;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::vm::runtime::method_area::MethodArea;
+use crate::vm::{
+    interpreter::static_method::Static,
+    runtime::method_area::{MethodArea, with_method_area},
+};
 
 mod interpreter;
 mod runtime;
@@ -31,10 +34,30 @@ pub enum VmError {
 
 pub(in crate::vm) type Result<T> = std::result::Result<T, VmError>;
 
+const UNSAFE_CONSTANTS: &str = "jdk/internal/misc/UnsafeConstants";
+const ADDRESS_SIZE: &str = "ADDRESS_SIZE0";
+const ACCESSIBLE_OBJ: &str = "java/lang/reflect/AccessibleObject";
+
+#[cfg(target_endian = "big")]
+const ENDIANNESS: i32 = 1;
+
+#[cfg(not(target_endian = "big"))]
+const ENDIANNESS: i32 = 0;
+
 /// Launches the VM.
 /// This initialise the JVM itself, loading the given class and invoking it `main` function.
 pub fn run(args: Args, path: &Path) -> Result<()> {
     setup(path)?;
+
+    Static::initialise(UNSAFE_CONSTANTS)?;
+    let uc = with_method_area(|area| area.get(UNSAFE_CONSTANTS))?;
+    let be = uc.get_static("BIG_ENDIAN").unwrap();
+    be.set(vec![ENDIANNESS])?;
+
+    let address = uc.get_static(ADDRESS_SIZE).unwrap();
+    address.set(vec![8]); // we are going to set only for 64 bit machines
+    Static::initialise(ACCESSIBLE_OBJ)?;
+
     todo!()
 }
 

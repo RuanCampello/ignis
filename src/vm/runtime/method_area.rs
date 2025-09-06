@@ -3,7 +3,7 @@ use dashmap::DashMap;
 use indexmap::IndexMap;
 use once_cell::sync::{Lazy, OnceCell};
 use parking_lot::RwLock;
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{collections::HashMap, ops::Index, path::Path, sync::Arc};
 
 static METHOD_AREA: OnceCell<MethodArea> = OnceCell::new();
 static PRIMITIVE_TYPE: Lazy<HashMap<&str, &str>> = {
@@ -34,6 +34,7 @@ pub(in crate::vm) struct MethodArea {
 #[derive(Debug)]
 pub(in crate::vm) struct Class {
     methods: IndexMap<String, Arc<Method>>,
+    static_fields: IndexMap<String, Arc<FieldValue>>,
 }
 
 #[derive(Debug)]
@@ -55,7 +56,7 @@ pub(in crate::vm) struct Context {
 }
 
 #[derive(Debug)]
-pub(in crate::vm::runtime) struct FieldValue {
+pub(in crate::vm) struct FieldValue {
     value: RwLock<Vec<i32>>,
 }
 
@@ -125,12 +126,14 @@ impl MethodArea {
 
         Arc::new(Class {
             methods: IndexMap::new(),
+            static_fields: IndexMap::new(),
         })
     }
 
     fn generate_class(classname: &str) -> Class {
         Class {
             methods: IndexMap::new(),
+            static_fields: IndexMap::new(),
         }
     }
 }
@@ -151,6 +154,12 @@ impl Class {
                     .get_full(signature.split(":").next()?)
                     .map(|(idx, _, method)| (idx, method.clone()))
             })
+    }
+
+    pub fn get_static(&self, static_field: &str) -> Option<Arc<FieldValue>> {
+        self.static_fields
+            .get(static_field)
+            .map(|field| Arc::clone(field))
     }
 }
 
@@ -176,6 +185,12 @@ impl FieldValue {
     pub(super) fn value(&self) -> Result<Vec<i32>> {
         let guard = self.value.read();
         Ok(guard.clone())
+    }
+
+    pub fn set(&self, value: Vec<i32>) -> Result<()> {
+        let mut guard = self.value.write();
+        *guard = value;
+        Ok(())
     }
 }
 

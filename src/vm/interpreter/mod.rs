@@ -10,6 +10,7 @@ pub(in crate::vm) use stack::StackFrame;
 mod executor;
 mod instructions;
 mod stack;
+pub mod static_method;
 
 #[derive(Error, Debug)]
 pub enum InterpreterError {
