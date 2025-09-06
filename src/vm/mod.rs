@@ -11,12 +11,14 @@ use std::path::Path;
 use thiserror::Error;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
+use crate::vm::runtime::method_area::MethodArea;
+
 mod interpreter;
 mod runtime;
 
 #[derive(Default)]
-struct Args {
-    entry: String,
+pub struct Args<'a> {
+    pub entry: &'a str,
 }
 
 #[derive(Error, Debug)]
@@ -31,8 +33,16 @@ pub(in crate::vm) type Result<T> = std::result::Result<T, VmError>;
 
 /// Launches the VM.
 /// This initialise the JVM itself, loading the given class and invoking it `main` function.
-pub fn run(path: &Path) -> Result<()> {
+pub fn run(args: Args, path: &Path) -> Result<()> {
+    setup(path)?;
     todo!()
+}
+
+fn setup(path: &Path) -> Result<()> {
+    logger()?;
+    MethodArea::initialise(path)?;
+
+    Ok(())
 }
 
 /// Initialise the logger.
