@@ -40,10 +40,18 @@ pub(in crate::vm) struct Class {
 pub(in crate::vm) struct Method {
     classname: Arc<str>,
     signature: Arc<str>,
+    context: Option<Context>,
     /// Indicates wheter a method is native or not.
     native: bool,
 
     annotations: Option<Vec<u8>>,
+}
+
+#[derive(Debug)]
+pub(in crate::vm) struct Context {
+    max_stack: u16,
+    max_locals: u16,
+    bytecode: Arc<[u8]>,
 }
 
 #[derive(Debug)]
@@ -122,7 +130,19 @@ impl Class {
 
 impl Method {
     pub fn new_frame(&self) -> Result<StackFrame> {
-        todo!()
+        match &self.context {
+            Some(ctx) => Ok(StackFrame::new(
+                ctx.max_locals as usize,
+                ctx.max_stack as usize,
+                Arc::clone(&ctx.bytecode),
+                Arc::clone(&self.classname),
+            )),
+            None => Err(RuntimeError::MissingCodeContext {
+                classname: self.classname.to_string(),
+                signature: self.signature.to_string(),
+            }
+            .into()),
+        }
     }
 }
 

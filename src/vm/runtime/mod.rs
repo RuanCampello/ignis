@@ -17,6 +17,12 @@ pub(in crate::vm) enum RuntimeError {
     #[error("Attempted to access non-existing field: '{field}' of object of class '{classname}'")]
     InvalidObjectAcess { classname: String, field: String },
 
+    #[error("Missing code context for {classname}.{signature}")]
+    MissingCodeContext {
+        classname: String,
+        signature: String,
+    },
+
     #[error("Invalid array entry size of: {0}")]
     InvalidArrayEntrySize(usize),
 
