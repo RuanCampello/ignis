@@ -1,7 +1,7 @@
 use crate::vm::{
     Result,
     interpreter::{ValueRef, stack::Value},
-    runtime::method_area::with_method_area,
+    runtime::{heap::with_mut_heap, method_area::with_method_area},
 };
 
 // for as it now, executor is not going to hold any state
@@ -19,5 +19,13 @@ impl Executor {
         // TODO: set args
 
         super::execute(frame)
+    }
+
+    pub fn default_constructor(classname: &str) -> Result<ValueRef> {
+        let instance = with_method_area(|area| area.create_instance_with_default(classname))?;
+        let instance_ref = with_mut_heap(|heap| heap.allocate_instance(instance));
+        Self::execute(classname, Self::INITIALISE_METHOD, &[instance_ref.into()])?;
+
+        Ok(instance_ref)
     }
 }

@@ -1,4 +1,8 @@
-use crate::vm::{Result, VmError, interpreter::StackFrame, runtime::RuntimeError};
+use crate::vm::{
+    Result, VmError,
+    interpreter::StackFrame,
+    runtime::{RuntimeError, heap::Instance},
+};
 use dashmap::DashMap;
 use indexmap::IndexMap;
 use once_cell::sync::{Lazy, OnceCell};
@@ -33,8 +37,13 @@ pub(in crate::vm) struct MethodArea {
 
 #[derive(Debug)]
 pub(in crate::vm) struct Class {
+    name: String,
     methods: IndexMap<String, Arc<Method>>,
     static_fields: IndexMap<String, Arc<FieldValue>>,
+    parent: Option<String>,
+
+    fields_hierarchy: OnceCell<IndexMap<String, IndexMap<String, FieldValue>>>,
+    fields_schema: IndexMap<String, FieldValue>,
 }
 
 #[derive(Debug)]
@@ -109,6 +118,34 @@ impl MethodArea {
         todo!()
     }
 
+    pub fn create_instance_with_default(&self, classname: &str) -> Result<Instance> {
+        let class = with_method_area(|area| area.get(classname))?;
+        Ok(Instance {
+            name: classname.to_string(),
+            fields: class.get_instance_fields()?.clone(),
+        })
+    }
+
+    pub(crate) fn fill_fields_hierarchy(
+        &self,
+        class_name: &str,
+        instance_fields_hierarchy: &mut IndexMap<String, IndexMap<String, FieldValue>>,
+    ) -> Result<()> {
+        if instance_fields_hierarchy.contains_key(class_name) {
+            return Ok(());
+        }
+        let rc = self.get(class_name)?;
+
+        if let Some(parent_class_name) = rc.parent.as_ref() {
+            self.fill_fields_hierarchy(parent_class_name, instance_fields_hierarchy)?;
+        }
+
+        let instance_fields = rc.default_value_fields();
+        instance_fields_hierarchy.insert(class_name.to_string(), instance_fields.clone());
+
+        Ok(())
+    }
+
     fn generate_classes() -> DashMap<String, Arc<Class>> {
         PRIMITIVE_TYPE
             .keys()
@@ -124,21 +161,26 @@ impl MethodArea {
     fn generate_array_class(classname: &str) -> Arc<Class> {
         let (internal, external) = internal_and_external_names(classname);
 
-        Arc::new(Class {
-            methods: IndexMap::new(),
-            static_fields: IndexMap::new(),
-        })
+        Arc::new(Class::with_classname(classname))
     }
 
     fn generate_class(classname: &str) -> Class {
-        Class {
-            methods: IndexMap::new(),
-            static_fields: IndexMap::new(),
-        }
+        Class::with_classname(classname)
     }
 }
 
 impl Class {
+    pub fn with_classname(classname: &str) -> Self {
+        Self {
+            name: classname.to_string(),
+            methods: IndexMap::new(),
+            static_fields: IndexMap::new(),
+            fields_schema: IndexMap::new(),
+            fields_hierarchy: OnceCell::new(),
+            parent: None,
+        }
+    }
+
     pub fn get_method(&self, signature: &str) -> Result<Arc<Method>> {
         self.get_full_method(signature)
             .and_then(|(_, method)| Some(method))
@@ -160,6 +202,19 @@ impl Class {
         self.static_fields
             .get(static_field)
             .map(|field| Arc::clone(field))
+    }
+
+    fn get_instance_fields(&self) -> Result<&IndexMap<String, IndexMap<String, FieldValue>>> {
+        self.fields_hierarchy.get_or_try_init(|| {
+            let mut fields = IndexMap::new();
+
+            with_method_area(|area| area.fill_fields_hierarchy(&self.name, &mut fields))?;
+            Ok(fields)
+        })
+    }
+
+    fn default_value_fields(&self) -> &IndexMap<String, FieldValue> {
+        &self.fields_schema
     }
 }
 
@@ -191,6 +246,15 @@ impl FieldValue {
         let mut guard = self.value.write();
         *guard = value;
         Ok(())
+    }
+}
+
+impl Clone for FieldValue {
+    fn clone(&self) -> Self {
+        let value = self.value.read().clone();
+        Self {
+            value: RwLock::new(value),
+        }
     }
 }
 

@@ -465,6 +465,12 @@ impl Default for Value {
     }
 }
 
+impl From<i32> for Value {
+    fn from(value: i32) -> Self {
+        Self::Int(value)
+    }
+}
+
 impl StackValue for i32 {
     fn get(index: usize, frame: &StackFrame) -> Self {
         frame.get_variable(index)

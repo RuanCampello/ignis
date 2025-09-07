@@ -38,9 +38,9 @@ struct Array {
 /// Represents a Java object instance in the JVM heap.
 pub(in crate::vm) struct Instance {
     /// Fully qualified class name of this object.
-    name: String,
+    pub name: String,
     /// Nested map of fields organized by class name and field name.
-    fields: IndexMap<String, IndexMap<String, FieldValue>>,
+    pub fields: IndexMap<String, IndexMap<String, FieldValue>>,
 }
 
 pub(in crate::vm) fn with_heap<C, R>(callback: C) -> R
