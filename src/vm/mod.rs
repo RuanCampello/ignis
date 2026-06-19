@@ -12,7 +12,7 @@ use thiserror::Error;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::vm::{
-    interpreter::static_method::Static,
+    interpreter::{executor::Executor, static_method::Static},
     runtime::method_area::{MethodArea, with_method_area},
 };
 
@@ -35,8 +35,9 @@ pub enum VmError {
 pub(in crate::vm) type Result<T> = std::result::Result<T, VmError>;
 
 const UNSAFE_CONSTANTS: &str = "jdk/internal/misc/UnsafeConstants";
-const ADDRESS_SIZE: &str = "ADDRESS_SIZE0";
+const THREAD_GROUP: &str = "java/lang/ThreadGroup";
 const ACCESSIBLE_OBJ: &str = "java/lang/reflect/AccessibleObject";
+const ADDRESS_SIZE: &str = "ADDRESS_SIZE0";
 
 #[cfg(target_endian = "big")]
 const ENDIANNESS: i32 = 1;
@@ -57,6 +58,8 @@ pub fn run(args: Args, path: &Path) -> Result<()> {
     let address = uc.get_static(ADDRESS_SIZE).unwrap();
     address.set(vec![8]); // we are going to set only for 64 bit machines
     Static::initialise(ACCESSIBLE_OBJ)?;
+
+    let obj = Executor::default_constructor(THREAD_GROUP)?;
 
     todo!()
 }

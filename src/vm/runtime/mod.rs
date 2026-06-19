@@ -28,4 +28,10 @@ pub enum RuntimeError {
 
     #[error("Attempted to access non-existing entry on array with index: {0}")]
     InvalidArrayAccess(usize),
+
+    #[error("Failed to open class file '{filepath}': {source}")]
+    FileLoadError {
+        filepath: String,
+        source: std::io::Error,
+    },
 }

@@ -7,13 +7,14 @@
 //!
 //! The output of this module is a structured `ClassFile` representation, which is used by the class loader and interpreter.
 
-#![allow(elided_named_lifetimes, private_interfaces)]
+#![allow(private_interfaces)]
 
 mod attributes;
 mod constant_pool;
 mod fields;
 mod methods;
 
+pub(crate) use constant_pool::{ConstantPool, ConstantPoolEntry};
 pub use fields::FieldFlags;
 pub use methods::MethodFlags;
 
@@ -25,7 +26,7 @@ use crate::classfile::{
 use self::attributes::get_attributes;
 use bitflags::bitflags;
 use bumpalo::{Bump, collections::Vec};
-use constant_pool::{ConstantPool, ConstantPoolError};
+use constant_pool::ConstantPoolError;
 use fields::Field;
 use std::io::{BufReader, Cursor, Read};
 use thiserror::Error;
@@ -184,6 +185,7 @@ impl<'c> Classfile<'c> {
         self.constant_pool.get_classname(self.super_class).ok()
     }
 
+    #[allow(mismatched_lifetime_syntaxes)]
     pub fn field_names(&'c self, arena: &'c Bump) -> Result<Vec<&'c str>, ConstantPoolError> {
         use self::constant_pool::ConstantPoolEntry;
 

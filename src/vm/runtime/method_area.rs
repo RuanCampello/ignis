@@ -1,13 +1,16 @@
-use crate::vm::{
-    Result, VmError,
-    interpreter::StackFrame,
-    runtime::{RuntimeError, heap::Instance},
+use crate::{
+    classfile::{Classfile, ConstantPool, ConstantPoolEntry},
+    vm::{
+        Result, VmError,
+        interpreter::StackFrame,
+        runtime::{RuntimeError, heap::Instance},
+    },
 };
 use dashmap::DashMap;
 use indexmap::IndexMap;
 use once_cell::sync::{Lazy, OnceCell};
 use parking_lot::RwLock;
-use std::{collections::HashMap, ops::Index, path::Path, sync::Arc};
+use std::{collections::HashMap, fs::File, io::Read, ops::Index, path::Path, sync::Arc};
 
 static METHOD_AREA: OnceCell<MethodArea> = OnceCell::new();
 static PRIMITIVE_TYPE: Lazy<HashMap<&str, &str>> = {
@@ -69,6 +72,39 @@ pub(in crate::vm) struct FieldValue {
     value: RwLock<Vec<i32>>,
 }
 
+struct Pool<'c> {
+    data: HashMap<PoolType, HashMap<u16, ConstantPoolEntry<'c>>>,
+    pool: Vec<ConstantPoolEntry<'c>>,
+    classname: Option<ClassName>,
+}
+
+struct ClassName {
+    index: u16,
+    name: String,
+}
+
+#[derive(Debug, Hash, PartialEq, Eq)]
+enum PoolType {
+    Empty,
+    Utf8,
+    Integer,
+    Float,
+    Long,
+    Double,
+    Class,
+    String,
+    Fieldref,
+    Methodref,
+    InterfaceMethodref,
+    NameAndType,
+    MethodHandle,
+    MethodType,
+    Dynamic,
+    InvokeDynamic,
+    Module,
+    Package,
+}
+
 pub(crate) fn with_method_area<C, R>(callback: C) -> R
 where
     C: FnOnce(&MethodArea) -> R,
@@ -114,8 +150,12 @@ impl MethodArea {
             return Ok(class);
         }
 
-        // TODO: load from file
-        todo!()
+        let classname = match classname.starts_with('L') && classname.ends_with(';') {
+            true => &classname[1..classname.len() - 1],
+            _ => classname,
+        };
+
+        todo!("load from file")
     }
 
     pub fn create_instance_with_default(&self, classname: &str) -> Result<Instance> {
@@ -144,6 +184,31 @@ impl MethodArea {
         instance_fields_hierarchy.insert(class_name.to_string(), instance_fields.clone());
 
         Ok(())
+    }
+
+    fn load_from_file(&self, classname: &str) -> Result<Arc<Class>> {
+        let filepath = format!("{classname}.class");
+
+        // TODO: module parsing
+
+        let mut file = match File::open(Path::new(&filepath)) {
+            Ok(file) => Ok(file),
+            Err(err) => Err(RuntimeError::FileLoadError {
+                filepath,
+                source: err,
+            }),
+        }?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer);
+
+        unimplemented!()
+    }
+
+    fn try_parse(&self, buffer: &[u8]) -> Result<Option<Arc<Class>>> {
+        let arena = bumpalo::Bump::new();
+        let classfile = Classfile::new(buffer, &arena).expect("Failed to parse classfile");
+
+        todo!()
     }
 
     fn generate_classes() -> DashMap<String, Arc<Class>> {
@@ -258,6 +323,24 @@ impl Clone for FieldValue {
     }
 }
 
+impl<'c> Pool<'c> {
+    fn new(pool: &[ConstantPoolEntry<'c>], classname: Option<ClassName>) -> Self {
+        let mut data: HashMap<PoolType, HashMap<u16, ConstantPoolEntry<'c>>> = HashMap::new();
+
+        for (idx, item) in pool.iter().enumerate() {
+            let typ = item.into();
+            let entry = data.entry(typ).or_insert_with(HashMap::new);
+            entry.insert(idx as u16, item.clone());
+        }
+
+        Self {
+            data,
+            pool: pool.to_vec(),
+            classname,
+        }
+    }
+}
+
 fn internal_and_external_names(string: &str) -> (String, String) {
     const SYNTH_CLASS_DELIM: &str = "#";
     if let Some(external) = PRIMITIVE_TYPE.get(string) {
@@ -274,6 +357,30 @@ fn internal_and_external_names(string: &str) -> (String, String) {
             let internal = string.to_string();
             let external = string.replace('/', ".");
             (internal, external)
+        }
+    }
+}
+
+impl<'c> From<&ConstantPoolEntry<'c>> for PoolType {
+    fn from(value: &ConstantPoolEntry<'c>) -> Self {
+        match value {
+            ConstantPoolEntry::Utf8(_) => Self::Utf8,
+            ConstantPoolEntry::Integer(_) => Self::Integer,
+            ConstantPoolEntry::Float(_) => Self::Float,
+            ConstantPoolEntry::Long(_) => Self::Long,
+            ConstantPoolEntry::Double(_) => Self::Double,
+            ConstantPoolEntry::Class(_) => Self::Class,
+            ConstantPoolEntry::StringRef(_) => Self::String,
+            ConstantPoolEntry::FieldRef(_, _) => Self::Fieldref,
+            ConstantPoolEntry::MethodRef(_, _) => Self::Methodref,
+            ConstantPoolEntry::InterfaceMethodRef(_, _) => Self::InterfaceMethodref,
+            ConstantPoolEntry::NameAndType(_, _) => Self::NameAndType,
+            ConstantPoolEntry::MethodHandle(_, _) => Self::MethodHandle,
+            ConstantPoolEntry::MethodType(_) => Self::MethodType,
+            ConstantPoolEntry::Dynamic(_, _) => Self::Dynamic,
+            ConstantPoolEntry::InvokeDynamic(_, _) => Self::InvokeDynamic,
+            ConstantPoolEntry::Module(_) => Self::Module,
+            ConstantPoolEntry::Package(_) => Self::Package,
         }
     }
 }

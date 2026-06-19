@@ -7,7 +7,7 @@ use crate::vm::{
 
 pub(in crate::vm) use stack::StackFrame;
 
-mod executor;
+pub mod executor;
 mod instructions;
 mod stack;
 pub mod static_method;

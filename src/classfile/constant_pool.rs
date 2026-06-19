@@ -14,7 +14,7 @@ use crate::classfile::ClassfileError;
 
 /// Constant pool of a given Java class.
 #[derive(Debug, PartialEq, Clone)]
-pub(in crate::classfile) struct ConstantPool<'c> {
+pub(crate) struct ConstantPool<'c> {
     entries: Vec<'c, Option<ConstantPoolEntry<'c>>>,
 }
 
@@ -141,7 +141,7 @@ impl<'c> ConstantPool<'c> {
     /// Tries to access a [pool entry](ConstantPoolEntry) in a given index.
     ///
     /// **Note**: it uses 1-index based.
-    pub fn get(&self, index: u16) -> Result<&ConstantPoolEntry, ConstantPoolError> {
+    pub fn get(&self, index: u16) -> Result<&ConstantPoolEntry<'_>, ConstantPoolError> {
         self.get_with(index, |entry| Ok(entry))
     }
 

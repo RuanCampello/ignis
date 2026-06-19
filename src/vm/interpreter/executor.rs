@@ -7,7 +7,7 @@ use crate::vm::{
 // for as it now, executor is not going to hold any state
 // but this may change in the future, for now it's going to be a
 // more namespace delimiter
-struct Executor {}
+pub(in crate::vm) struct Executor {}
 
 impl Executor {
     const INITIALISE_METHOD: &str = "<init>:()V";
