@@ -1,8 +1,12 @@
-use std::{borrow::Cow, fs::File, path::Path};
+use std::{borrow::Cow, fs::File, io::Read, path::Path};
 
 use memmap2::Mmap;
 
-use crate::image::{Error, header::Header, read, read_mut};
+use crate::image::{
+    Error,
+    header::{Header, ResourceHeader},
+    read,
+};
 
 /// A Java Image (JImage) file representation
 ///
@@ -32,7 +36,8 @@ enum AttributeKind {
 
 impl Image {
     /// from [open-jdk11](https://github.com/AdoptOpenJDK/openjdk-jdk11u/blob/4f9c8c4c48683a77655faa63c23da2f77cb208d0/src/java.base/share/native/libjimage/imageFile.hpp#L162)
-    const HASH_MULTIPLIER: i32 = 0;
+    const HASH_MULTIPLIER: u32 = 0;
+    const SUPPORTED_DECOMPRESSOR: &str = "zip";
 
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let file = File::open(path.as_ref())?;
@@ -50,12 +55,12 @@ impl Image {
         let index = hash % items;
         let value = {
             let offset = self.header.redirect(index as usize);
-            read(&self.mmap, offset, self.header.endianness())?
+            read::<i32>(&self.mmap, offset, self.header.endianness())?
         };
 
         let index = match value {
-            value if value < 0 => -1 - value,
-            value if value > 0 => Self::hash(name, value)? % items,
+            value if value < 0 => -1 - value as i32,
+            value if value > 0 => Self::hash(name, value as u32)? % items,
             _ => return Ok(None),
         };
 
@@ -70,11 +75,53 @@ impl Image {
             return Ok(None);
         }
 
-        todo!()
+        self.get_resource(&attributes)
     }
 
-    fn hash(value: &str, seed: i32) -> Result<i32, Error> {
-        todo!()
+    fn get_resource(&self, attributes: &[u64; 8]) -> Result<Option<Cow<'_, [u8]>>, Error> {
+        let offset = attributes[AttributeKind::Offset as usize] as usize;
+        let compressed = attributes[AttributeKind::Compressed as usize] as usize;
+        let uncompressed = attributes[AttributeKind::Uncompressed as usize] as usize;
+
+        let start = self.header.data(offset);
+
+        match compressed == 0 {
+            true => Ok(Some(Cow::Borrowed(&self.mmap[start..start + uncompressed]))),
+            _ => {
+                let compressed = &self.mmap[start..start + compressed];
+                let resource_header = ResourceHeader::try_from(compressed)?;
+
+                let decompressor_name_offset = resource_header.decompressor_name_offset;
+                let decompressor_name = self.get_string(decompressor_name_offset as usize)?;
+
+                if decompressor_name != Self::SUPPORTED_DECOMPRESSOR {
+                    return Err(Error::Other(format!(
+                        "Unsupported decompressor in resource: {decompressor_name}"
+                    )));
+                }
+
+                let start = ResourceHeader::SIZE;
+                let end = start + resource_header.compressed_size as usize;
+                let payload = &self.mmap[start..end];
+                let mut decoder = flate2::read::ZlibDecoder::new(payload);
+                let mut uncompressed_payload =
+                    vec![0u8; resource_header.uncompressed_size as usize];
+
+                decoder.read_exact(&mut uncompressed_payload)?;
+
+                Ok(Some(Cow::Owned(uncompressed_payload)))
+            }
+        }
+    }
+
+    fn hash(value: &str, seed: u32) -> Result<i32, Error> {
+        let mut hash = seed;
+
+        value.as_bytes().iter().for_each(|&byte| {
+            hash = hash.overflowing_mul(Self::HASH_MULTIPLIER as u32).0 ^ byte as u32
+        });
+
+        Ok((hash & 0x7FFFFFFF) as i32)
     }
 
     fn attributes(&self, index: usize) -> Result<[u64; 8], Error> {

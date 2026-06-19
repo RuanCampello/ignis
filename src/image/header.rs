@@ -1,24 +1,22 @@
-//! Image File Header
-//!
-//! ## Header Fields
-//!
-//! ```text
-//! ╭──────────────────┬────────┬──────┬──────────────────────────────────────╮
-//! │ Field            │ Offset │ Size │ Description                          │
-//! ├──────────────────┼────────┼──────┼──────────────────────────────────────┤
-//! │ magic            │ 0      │ 4    │ 0xCAFEDADA identifying a Image file  │
-//! │ version          │ 4      │ 4    │ Format version (major and minor)     │
-//! │ flags            │ 8      │ 4    │ Reserved/flag                        │
-//! │ resource count   │ 12     │ 4    │ Number of resources                  │
-//! │ table length     │ 16     │ 4    │ Total byte length of all tables      │
-//! │ locations size   │ 24     │ 4    │ File offset to the location table    │
-//! │ strings size     │ 28     │ 4    │ File offset to the strings table     │
-//! ╰──────────────────┴────────┴──────┴──────────────────────────────────────╯
-//! ```
-
+//! Image file and resource header
 use crate::image::{Endianness, Error, read_mut};
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
+/// `JImage` file header
+///
+/// ```text
+/// ╭──────────────────┬────────┬──────┬──────────────────────────────────────╮
+/// │ Field            │ Offset │ Size │ Description                          │
+/// ├──────────────────┼────────┼──────┼──────────────────────────────────────┤
+/// │ magic            │ 0      │ 4    │ 0xCAFEDADA identifying a Image file  │
+/// │ version          │ 4      │ 4    │ Format version (major and minor)     │
+/// │ flags            │ 8      │ 4    │ Reserved/flag                        │
+/// │ resource count   │ 12     │ 4    │ Number of resources                  │
+/// │ table length     │ 16     │ 4    │ Total byte length of all tables      │
+/// │ locations size   │ 24     │ 4    │ File offset to the location table    │
+/// │ strings size     │ 28     │ 4    │ File offset to the strings table     │
+/// ╰──────────────────┴────────┴──────┴──────────────────────────────────────╯
+/// ```
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub(in crate::image) struct Header {
     version_major: u16,
@@ -29,6 +27,16 @@ pub(in crate::image) struct Header {
     locations_size: u32,
     strings_size: u32,
     endianness: Endianness,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(in crate::image) struct ResourceHeader {
+    pub(in crate::image) compressed_size: u64,
+    pub(in crate::image) uncompressed_size: u64,
+    pub(in crate::image) decompressor_name_offset: u32,
+    decompressor_config_offset: u32,
+
+    is_terminal: u8,
 }
 
 impl Header {
@@ -57,7 +65,15 @@ impl Header {
     }
 
     pub(in crate::image) const fn attributes(&self, position: usize) -> usize {
-        Self::SIZE + self.bytes_length() + position
+        self.attributes_begins_at() + position
+    }
+
+    pub(in crate::image) const fn data(&self, position: usize) -> usize {
+        self.attributes_begins_at() + self.strings_size as usize + position
+    }
+
+    const fn attributes_begins_at(&self) -> usize {
+        Self::SIZE + self.bytes_length()
     }
 }
 
@@ -92,6 +108,34 @@ impl TryFrom<&[u8]> for Header {
             locations_size,
             strings_size,
             endianness,
+        })
+    }
+}
+
+impl ResourceHeader {
+    pub(in crate::image) const SIZE: usize = 29;
+}
+
+impl TryFrom<&[u8]> for ResourceHeader {
+    type Error = Error;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let endianness = extract_endianness(value, 0xCAFEFAFA)?;
+
+        let mut position = 4;
+
+        let compressed_size = read_mut(value, &mut position, endianness)?;
+        let uncompressed_size = read_mut(value, &mut position, endianness)?;
+        let decompressor_name_offset = read_mut(value, &mut position, endianness)?;
+        let decompressor_config_offset = read_mut(value, &mut position, endianness)?;
+        let is_terminal = value[position];
+
+        Ok(Self {
+            compressed_size,
+            uncompressed_size,
+            decompressor_name_offset,
+            decompressor_config_offset,
+            is_terminal,
         })
     }
 }
