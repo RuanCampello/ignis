@@ -39,6 +39,11 @@ pub(in crate::vm) struct MethodArea {
 }
 
 #[derive(Debug)]
+pub(in crate::vm) struct Modules {
+    registry: DashMap<String, i32>,
+}
+
+#[derive(Debug)]
 pub(in crate::vm) struct Class {
     name: String,
     methods: IndexMap<String, Arc<Method>>,
@@ -231,6 +236,14 @@ impl MethodArea {
 
     fn generate_class(classname: &str) -> Class {
         Class::with_classname(classname)
+    }
+}
+
+impl Modules {
+    fn new() -> Self {
+        Self {
+            registry: DashMap::new(),
+        }
     }
 }
 

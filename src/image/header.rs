@@ -16,7 +16,7 @@
 //! ╰──────────────────┴────────┴──────┴──────────────────────────────────────╯
 //! ```
 
-use crate::image::{Endianness, Error, read};
+use crate::image::{Endianness, Error, read_mut};
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -28,6 +28,7 @@ pub(in crate::image) struct Header {
     table_length: u32,
     locations_size: u32,
     strings_size: u32,
+    endianness: Endianness,
 }
 
 impl Header {
@@ -38,17 +39,37 @@ impl Header {
     pub(in crate::image) const fn bytes_length(&self) -> usize {
         self.table_length as usize * 4
     }
+
+    pub(in crate::image) const fn items(&self) -> u32 {
+        self.table_length
+    }
+
+    pub(in crate::image) const fn redirect(&self, position: usize) -> usize {
+        Self::SIZE + position * 4
+    }
+
+    pub(in crate::image) const fn endianness(&self) -> Endianness {
+        self.endianness
+    }
+
+    pub(in crate::image) const fn offset(&self, position: usize) -> usize {
+        Self::SIZE + self.bytes_length() + position * 4
+    }
+
+    pub(in crate::image) const fn attributes(&self, position: usize) -> usize {
+        Self::SIZE + self.bytes_length() + position
+    }
 }
 
 impl TryFrom<&[u8]> for Header {
     type Error = Error;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
-        let endianness = extract_endianness(bytes, super::MAGIC, "header")?;
+        let endianness = extract_endianness(bytes, super::MAGIC)?;
 
         let mut position = 4;
 
-        let version = read::<u32>(bytes, &mut position, endianness)?;
+        let version = read_mut::<u32>(bytes, &mut position, endianness)?;
         let version_major = (version >> 16) as u16;
         let version_minor = (version & 0xFFFF) as u16;
 
@@ -56,11 +77,11 @@ impl TryFrom<&[u8]> for Header {
             todo!()
         }
 
-        let flags = read(bytes, &mut position, endianness)?;
-        let resource_count = read(bytes, &mut position, endianness)?;
-        let table_length = read(bytes, &mut position, endianness)?;
-        let locations_size = read(bytes, &mut position, endianness)?;
-        let strings_size = read(bytes, &mut position, endianness)?;
+        let flags = read_mut(bytes, &mut position, endianness)?;
+        let resource_count = read_mut(bytes, &mut position, endianness)?;
+        let table_length = read_mut(bytes, &mut position, endianness)?;
+        let locations_size = read_mut(bytes, &mut position, endianness)?;
+        let strings_size = read_mut(bytes, &mut position, endianness)?;
 
         Ok(Self {
             version_major,
@@ -70,12 +91,13 @@ impl TryFrom<&[u8]> for Header {
             table_length,
             locations_size,
             strings_size,
+            endianness,
         })
     }
 }
 
 #[inline]
-fn extract_endianness<'e>(bytes: &[u8], magic: u32, label: &'e str) -> Result<Endianness, Error> {
+fn extract_endianness<'e>(bytes: &[u8], magic: u32) -> Result<Endianness, Error> {
     let bytes = bytes.get(..4).ok_or(Error::BadRead { start: 0, end: 4 })?;
 
     if LittleEndian::read_u32(bytes) == magic {

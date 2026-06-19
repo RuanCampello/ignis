@@ -23,7 +23,7 @@ pub(in crate::image) enum Error {
     Other(String),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub(in crate::image) enum Endianness {
     Little,
     Big,
@@ -42,23 +42,29 @@ macro_rules! impl_from_bytes {
         })*
     };
 }
-impl_from_bytes!(u16, u32, u64, i16, i32, i64);
+impl_from_bytes!(u16, u32, u64, i16, i32, i64, usize);
 
 #[inline]
-fn read<T: FromBytes>(
-    bytes: &[u8],
-    offset: &mut usize,
-    endianness: Endianness,
-) -> Result<T, Error> {
-    let start = *offset;
+pub fn read<T: FromBytes>(bytes: &[u8], offset: usize, endianness: Endianness) -> Result<T, Error> {
+    let start = offset;
     let end = start + std::mem::size_of::<T>();
 
     let slice = bytes.get(start..end).ok_or(Error::BadRead { start, end })?;
-
-    *offset = end;
 
     match endianness {
         Endianness::Little => Ok(T::from_le(slice)),
         Endianness::Big => Ok(T::from_be(slice)),
     }
+}
+
+#[inline]
+pub fn read_mut<T: FromBytes>(
+    bytes: &[u8],
+    offset: &mut usize,
+    endianness: Endianness,
+) -> Result<T, Error> {
+    let result = read(bytes, *offset, endianness)?;
+    *offset += std::mem::size_of::<T>();
+
+    Ok(result)
 }
