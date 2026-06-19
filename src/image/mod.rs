@@ -1,8 +1,6 @@
 //! This module is responsable for dealing with `JImage` files that are
 //! used by the Java Plataform Module System
 
-use std::f32::consts::E;
-
 mod header;
 mod image;
 
@@ -19,6 +17,10 @@ pub(in crate::image) enum Error {
     },
     #[error("Unable to read from slice: [{start}..{end}]")]
     BadRead { start: usize, end: usize },
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("Internal error: {0}")]
+    Other(String),
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -7,6 +7,8 @@
 //! This module acts as the bridge between the static class file data and the dynamic execution of Java programs,
 //! forming the heart of the JVM interpreter and class loader runtime system.
 
+#![allow(unused)]
+
 use std::path::Path;
 use thiserror::Error;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};

@@ -7,7 +7,7 @@
 //!
 //! The output of this module is a structured `ClassFile` representation, which is used by the class loader and interpreter.
 
-#![allow(private_interfaces)]
+#![allow(private_interfaces, unused)]
 
 mod attributes;
 mod constant_pool;
