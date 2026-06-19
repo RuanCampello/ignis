@@ -16,7 +16,7 @@
 //! ╰──────────────────┴────────┴──────┴──────────────────────────────────────╯
 //! ```
 
-use crate::image::{Endianness, read};
+use crate::image::{Endianness, Error, read};
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -41,7 +41,7 @@ impl Header {
 }
 
 impl TryFrom<&[u8]> for Header {
-    type Error = ();
+    type Error = Error;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         let endianness = extract_endianness(bytes, super::MAGIC, "header")?;
@@ -75,14 +75,16 @@ impl TryFrom<&[u8]> for Header {
 }
 
 #[inline]
-fn extract_endianness<'e>(bytes: &[u8], magic: u32, label: &'e str) -> Result<Endianness, ()> {
-    let bytes = bytes.get(..4).ok_or(())?;
+fn extract_endianness<'e>(bytes: &[u8], magic: u32, label: &'e str) -> Result<Endianness, Error> {
+    let bytes = bytes.get(..4).ok_or(Error::BadRead { start: 0, end: 4 })?;
 
     if LittleEndian::read_u32(bytes) == magic {
         Ok(Endianness::Little)
     } else if BigEndian::read_u32(bytes) == magic {
         Ok(Endianness::Big)
     } else {
-        Err(())
+        Err(Error::Magic {
+            magic: bytes.try_into().unwrap_or([0; 4]),
+        })
     }
 }

@@ -8,6 +8,19 @@ mod image;
 
 pub(in crate::image) const MAGIC: u32 = 0xCAFEDADA;
 
+#[derive(Debug, thiserror::Error)]
+pub(in crate::image) enum Error {
+    #[error("File doesn't match a valid jimage. Found {magic:02x?}")]
+    Magic { magic: [u8; 4] },
+    #[error("Invalid jimage version: {version_major}.{version_minor}")]
+    InvalidVersion {
+        version_major: u16,
+        version_minor: u16,
+    },
+    #[error("Unable to read from slice: [{start}..{end}]")]
+    BadRead { start: usize, end: usize },
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(in crate::image) enum Endianness {
     Little,
@@ -29,11 +42,16 @@ macro_rules! impl_from_bytes {
 }
 impl_from_bytes!(u16, u32, u64, i16, i32, i64);
 
-fn read<T: FromBytes>(bytes: &[u8], offset: &mut usize, endianness: Endianness) -> Result<T, ()> {
+#[inline]
+fn read<T: FromBytes>(
+    bytes: &[u8],
+    offset: &mut usize,
+    endianness: Endianness,
+) -> Result<T, Error> {
     let start = *offset;
     let end = start + std::mem::size_of::<T>();
 
-    let slice = bytes.get(start..end).ok_or(())?;
+    let slice = bytes.get(start..end).ok_or(Error::BadRead { start, end })?;
 
     *offset = end;
 
