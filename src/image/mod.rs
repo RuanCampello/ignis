@@ -8,7 +8,7 @@ mod image;
 
 pub(in crate::image) const MAGIC: u32 = 0xCAFEDADA;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(in crate::image) enum Endianness {
     Little,
     Big,
