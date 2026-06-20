@@ -22,10 +22,6 @@ impl Executor {
     }
 
     pub fn default_constructor(classname: &str) -> Result<ValueRef> {
-        let instance = with_method_area(|area| area.create_instance_with_default(classname))?;
-        let instance_ref = with_mut_heap(|heap| heap.allocate_instance(instance));
-        Self::execute(classname, Self::INITIALISE_METHOD, &[instance_ref.into()])?;
-
-        Ok(instance_ref)
+        todo!()
     }
 }

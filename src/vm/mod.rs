@@ -9,14 +9,16 @@
 
 #![allow(unused)]
 
-use std::path::Path;
-use thiserror::Error;
-use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
-
 use crate::vm::{
     interpreter::{executor::Executor, static_method::Static},
     runtime::method_area::{MethodArea, with_method_area},
 };
+use std::{
+    path::{Path, PathBuf},
+    sync::OnceLock,
+};
+use thiserror::Error;
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 mod interpreter;
 mod runtime;
@@ -32,7 +34,11 @@ pub enum VmError {
     Runtime(#[from] runtime::RuntimeError),
     #[error(transparent)]
     Interpreter(#[from] interpreter::InterpreterError),
+    #[error(transparent)]
+    Image(#[from] crate::image::Error),
 }
+
+static JAVA_HOME: OnceLock<PathBuf> = OnceLock::new();
 
 pub(in crate::vm) type Result<T> = std::result::Result<T, VmError>;
 
@@ -50,6 +56,7 @@ const ENDIANNESS: i32 = 0;
 /// Launches the VM.
 /// This initialise the JVM itself, loading the given class and invoking it `main` function.
 pub fn run(args: Args, path: &Path) -> Result<()> {
+    // TODO: set java home by the arguments
     setup(path)?;
 
     Static::initialise(UNSAFE_CONSTANTS)?;

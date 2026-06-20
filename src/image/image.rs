@@ -23,7 +23,7 @@ pub(crate) struct ResourceName<'a> {
     pub extension: Cow<'a, str>,
 }
 
-struct ResourceIter<'i> {
+pub(crate) struct ResourceIter<'i> {
     image: &'i Image,
     front: usize,
     back: usize,

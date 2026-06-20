@@ -4,16 +4,16 @@ use crate::vm::{
     runtime::{
         RuntimeError,
         heap::{BaseInstance, ClassInstance, Instance},
-        method_area::{PRIMITIVE_TYPE, with_method_area},
+        method_area::{PRIMITIVE_TYPE, fill_fields_hierarchy, with_method_area},
     },
 };
 use dashmap::DashMap;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use parking_lot::RwLock;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(in crate::vm::runtime) struct Classes {
     classes: DashMap<String, ClassEntry>,
     index: DashMap<usize, Arc<ClassEntry>>,
@@ -75,6 +75,8 @@ struct Modifiers: u16 {
     const Annotation = 0x2000;
     const Enum       = 0x4000;
 }}
+
+pub(in crate::vm::runtime) static CLASSES: LazyLock<Classes> = LazyLock::new(Classes::default);
 
 /// a class with its id and name
 type ClassWithId = (usize, String, Arc<Class>);
@@ -229,13 +231,13 @@ impl Class {
         self.fields_hierarchy.get_or_try_init(|| {
             let mut fields = IndexMap::new();
 
-            with_method_area(|area| area.fill_fields_hierarchy(&self.name, &mut fields))?;
+            with_method_area(|area| fill_fields_hierarchy(&self.name, &mut fields))?;
             Ok(fields)
         })
     }
 
-    pub(super) fn default_value_fields(&self) -> &IndexMap<String, FieldValue> {
-        &self.fields_schema
+    pub(super) fn default_value_fields(&self) -> IndexMap<String, FieldValue> {
+        self.fields_schema.clone()
     }
 }
 

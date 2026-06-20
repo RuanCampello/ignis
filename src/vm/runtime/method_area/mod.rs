@@ -2,9 +2,9 @@ use crate::{
     classfile::{Classfile, ConstantPool, ConstantPoolEntry},
     image::image::Image,
     vm::{
-        Result, VmError,
+        JAVA_HOME, Result, VmError,
         interpreter::{StackFrame, ldc::Ldc},
-        runtime::{RuntimeError, heap::BaseInstance},
+        runtime::{RuntimeError, heap::BaseInstance, method_area::class::CLASSES},
     },
 };
 use dashmap::DashMap;
@@ -99,65 +99,40 @@ impl MethodArea {
 
     pub fn initialise(path: impl AsRef<Path>) -> Result<()> {
         METHOD_AREA
-            .set(MethodArea::new(path)?)
+            .set(MethodArea::new()?)
             .map_err(|_| RuntimeError::MethodAreaInitialised.into())
     }
 
-    pub fn new<'a>(path: impl AsRef<Path>) -> Result<Self> {
-        let modules = path.as_ref().join("lib").join("modules");
-        let classes = Self::generate_classes();
+    pub fn new<'a>() -> Result<Self> {
+        let home = JAVA_HOME.get().ok_or_else(|| {
+            RuntimeError::Execution("JAVA_HOME is not set, cannot initialise MethodArea".into())
+        })?;
+
+        let modules = home.join("lib").join("modules");
+        let image = Image::open(modules)?;
+
+        let modules_map = image
+            .into_iter()
+            .map(|result| result.map_err(From::from))
+            .map(|result| result.map(|r| r.get_full_name()))
+            .map(|result| result.map(|(module, name)| (name, module)))
+            .collect::<Result<HashMap<_, _>>>()?;
+
+        let modules = Arc::new(Modules::new());
+        let ldc = Ldc::default();
 
         Ok(Self {
-            classes,
-            reflection: DashMap::new(),
+            image,
+            modules,
+            modules_map,
+            ldc,
             thread_id: OnceCell::new(),
             group_thread_id: OnceCell::new(),
         })
     }
 
     pub fn get(&self, classname: &str) -> Result<Arc<Class>> {
-        if let Some(class) = self.classes.get(classname) {
-            return Ok(Arc::clone(class.value()));
-        }
-
-        if classname.starts_with('[') {
-            let class = Self::generate_array_class(classname);
-            self.classes
-                .insert(classname.to_string(), Arc::clone(&class));
-
-            return Ok(class);
-        }
-
-        let classname = match classname.starts_with('L') && classname.ends_with(';') {
-            true => &classname[1..classname.len() - 1],
-            _ => classname,
-        };
-
-        todo!("load from file")
-    }
-
-    pub fn create_instance_with_default(&self, classname: &str) -> Result<BaseInstance> {
         todo!()
-    }
-
-    pub(crate) fn fill_fields_hierarchy(
-        &self,
-        class_name: &str,
-        instance_fields_hierarchy: &mut IndexMap<String, IndexMap<String, FieldValue>>,
-    ) -> Result<()> {
-        if instance_fields_hierarchy.contains_key(class_name) {
-            return Ok(());
-        }
-        let rc = self.get(class_name)?;
-
-        if let Some(parent_class_name) = rc.parent.as_ref() {
-            self.fill_fields_hierarchy(parent_class_name, instance_fields_hierarchy)?;
-        }
-
-        let instance_fields = rc.default_value_fields();
-        instance_fields_hierarchy.insert(class_name.to_string(), instance_fields.clone());
-
-        Ok(())
     }
 
     fn load_from_file(&self, classname: &str) -> Result<Arc<Class>> {
@@ -176,35 +151,6 @@ impl MethodArea {
         file.read_to_end(&mut buffer);
 
         unimplemented!()
-    }
-
-    fn try_parse(&self, buffer: &[u8]) -> Result<Option<Arc<Class>>> {
-        let arena = bumpalo::Bump::new();
-        let classfile = Classfile::new(buffer, &arena).expect("Failed to parse classfile");
-
-        todo!()
-    }
-
-    fn generate_classes() -> DashMap<String, Arc<Class>> {
-        PRIMITIVE_TYPE
-            .keys()
-            .map(|class_name| {
-                (
-                    class_name.to_string(),
-                    Arc::new(Self::generate_class(class_name)),
-                )
-            })
-            .collect()
-    }
-
-    fn generate_array_class(classname: &str) -> Arc<Class> {
-        let (internal, external) = internal_and_external_names(classname);
-
-        Arc::new(Class::with_classname(classname))
-    }
-
-    fn generate_class(classname: &str) -> Class {
-        Class::with_classname(classname)
     }
 }
 
@@ -232,6 +178,21 @@ impl<'c> Pool<'c> {
             classname,
         }
     }
+}
+
+pub(in crate::vm::runtime::method_area) fn fill_fields_hierarchy(
+    classname: &str,
+    instance_fields_hierarchy: &mut IndexMap<String, IndexMap<String, FieldValue>>,
+) -> Result<()> {
+    let class = CLASSES.get(classname)?;
+    if let Some(parent) = class.parent.as_ref() {
+        fill_fields_hierarchy(parent, instance_fields_hierarchy)?;
+    }
+
+    let instance_fields = class.default_value_fields();
+    instance_fields_hierarchy.insert(classname.to_string(), instance_fields);
+
+    Ok(())
 }
 
 fn internal_and_external_names(string: &str) -> (String, String) {
