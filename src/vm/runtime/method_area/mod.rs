@@ -1,8 +1,9 @@
 use crate::{
     classfile::{Classfile, ConstantPool, ConstantPoolEntry},
+    image::image::Image,
     vm::{
         Result, VmError,
-        interpreter::StackFrame,
+        interpreter::{StackFrame, ldc::Ldc},
         runtime::{RuntimeError, heap::BaseInstance},
     },
 };
@@ -35,8 +36,10 @@ static PRIMITIVE_TYPE: Lazy<HashMap<&str, &str>> = {
 
 #[derive(Debug)]
 pub(in crate::vm) struct MethodArea {
-    classes: DashMap<String, Arc<Class>>,
-    reflection: DashMap<i32, String>,
+    image: Image,
+    modules: Arc<Modules>,
+    modules_map: HashMap<String, String>,
+    ldc: Ldc,
     thread_id: OnceCell<i32>,
     /// Thread group created by the VM.
     group_thread_id: OnceCell<i32>,

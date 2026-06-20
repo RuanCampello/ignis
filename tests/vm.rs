@@ -14,4 +14,3 @@ fn initialise_vm() -> Result<()> {
 
     Ok(())
 }
-

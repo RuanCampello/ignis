@@ -25,6 +25,7 @@ pub(in crate::vm) struct Class {
     methods: IndexMap<String, Arc<Method>>,
     static_fields: IndexMap<String, Arc<FieldValue>>,
     pub(super) parent: Option<String>,
+    modifiers: Modifiers,
 
     fields_hierarchy: OnceCell<IndexMap<String, IndexMap<String, FieldValue>>>,
     fields_schema: IndexMap<String, FieldValue>,
@@ -58,6 +59,22 @@ struct ClassEntry {
     id: usize,
     class: Arc<Class>,
 }
+
+bitflags::bitflags! {
+#[derive(Debug, Clone, Copy)]
+struct Modifiers: u16 {
+    const Public     = 0x0001;
+    const Private    = 0x0002;
+    const Protected  = 0x0004;
+    const Static     = 0x0008;
+    const Final      = 0x0010;
+    const Interface  = 0x0200;
+    const Abstract   = 0x0400;
+    const Strict     = 0x0800;
+    const Synthetic  = 0x1000;
+    const Annotation = 0x2000;
+    const Enum       = 0x4000;
+}}
 
 /// a class with its id and name
 type ClassWithId = (usize, String, Arc<Class>);
@@ -110,7 +127,7 @@ impl Classes {
         class: (&Arc<Class>, usize),
         class_class: (&Arc<usize>, usize),
         component_ref_type: Option<i32>,
-        class_ref: Option<i32>,
+        class_loader_ref: Option<i32>,
     ) -> Result<()> {
         let (class, id) = class;
         let mut instance = Instance::Class(ClassInstance {
@@ -132,6 +149,32 @@ impl Classes {
             .unwrap_or(0);
         instance.set_field_value(Class::NAME, "primitive", vec![primitive])?;
 
+        let modifiers = class.modifiers.bits();
+        instance.set_field_value(Class::NAME, "modifiers", vec![modifiers as i32])?;
+
+        instance.set_field_value(
+            Class::NAME,
+            "classLoader",
+            vec![class_loader_ref.unwrap_or(0)],
+        )?;
+
+        let (module, patch) = with_method_area(|area| {
+            let file = format!("{}.class", class.name);
+            match area.modules_map.get(&file) {
+                Some(package) => {
+                    let modules = &area.modules;
+                    let registry = &modules.registry;
+                    let module = registry.get(package).map(|v| *v.value()).unwrap_or(0);
+                    let patch = package == "java.base" && module == 0;
+
+                    (module, patch)
+                }
+                _ => {
+                    todo!();
+                }
+            }
+        });
+
         todo!()
     }
 
@@ -152,6 +195,7 @@ impl Class {
             static_fields: IndexMap::new(),
             fields_schema: IndexMap::new(),
             fields_hierarchy: OnceCell::new(),
+            modifiers: Modifiers::empty(),
             parent: None,
         }
     }

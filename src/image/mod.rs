@@ -4,7 +4,7 @@
 #![allow(unused)]
 
 mod header;
-mod image;
+pub(crate) mod image;
 
 pub(in crate::image) const MAGIC: u32 = 0xCAFEDADA;
 
