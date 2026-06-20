@@ -189,3 +189,123 @@ impl std::fmt::Display for TypeDescriptor {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::TypeDescriptor::*;
+    use super::*;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case("B", Byte)]
+    #[case("C", Char)]
+    #[case("D", Double)]
+    #[case("F", Float)]
+    #[case("I", Integer)]
+    #[case("J", Long)]
+    #[case("S", Short)]
+    #[case("Z", Boolean)]
+    #[case("V", Void)]
+    fn parses_primitive(#[case] input: &str, #[case] expected: TypeDescriptor) {
+        assert_eq!(input.parse::<TypeDescriptor>().unwrap(), expected);
+    }
+
+    #[rstest]
+    #[case("Ljava/lang/String;", Object("java/lang/String".to_string()))]
+    #[case("Ljava/lang/Object;", Object("java/lang/Object".to_string()))]
+    #[case("Lfoo/Bar;", Object("foo/Bar".to_string()))]
+    fn parses_object(#[case] input: &str, #[case] expected: TypeDescriptor) {
+        assert_eq!(input.parse::<TypeDescriptor>().unwrap(), expected);
+    }
+
+    #[rstest]
+    #[case("[I", Array(Box::new(Integer), 1))]
+    #[case("[[I", Array(Box::new(Integer), 2))]
+    #[case("[[[I", Array(Box::new(Integer), 3))]
+    #[case("[Ljava/lang/String;", Array(Box::new(Object("java/lang/String".to_string())), 1))]
+    #[case("[[Ljava/lang/String;", Array(Box::new(Object("java/lang/String".to_string())), 2))]
+    #[case("[Z", Array(Box::new(Boolean), 1))]
+    fn parses_array(#[case] input: &str, #[case] expected: TypeDescriptor) {
+        assert_eq!(input.parse::<TypeDescriptor>().unwrap(), expected);
+    }
+
+    #[rstest]
+    #[case("B")]
+    #[case("C")]
+    #[case("D")]
+    #[case("F")]
+    #[case("I")]
+    #[case("J")]
+    #[case("S")]
+    #[case("Z")]
+    #[case("V")]
+    #[case("Ljava/lang/String;")]
+    #[case("[I")]
+    #[case("[[[D")]
+    #[case("[[Ljava/lang/Object;")]
+    fn type_round_trips(#[case] descriptor: &str) {
+        let parsed = descriptor.parse::<TypeDescriptor>().unwrap();
+        assert_eq!(parsed.to_string(), descriptor);
+    }
+
+    #[rstest]
+    #[case("", Error::UnexpectedEOF)]
+    #[case("Q", Error::InvalidFormat("invalid type descriptor"))]
+    #[case(
+        "Ljava/lang/String",
+        Error::InvalidFormat("missing semicolon in class name descriptor")
+    )]
+    fn type_parse_errors(#[case] input: &str, #[case] expected: Error) {
+        let err = input.parse::<TypeDescriptor>().unwrap_err();
+        assert_eq!(err.to_string(), expected.to_string());
+    }
+
+    #[rstest]
+    #[case("()V", vec![], Void)]
+    #[case("(I)I", vec![Integer], Integer)]
+    #[case("(IJ)Z", vec![Integer, Long], Boolean)]
+    #[case(
+        "(Ljava/lang/String;[I)V",
+        vec![Object("java/lang/String".to_string()), Array(Box::new(Integer), 1)],
+        Void,
+    )]
+    #[case(
+        "([[Ljava/lang/String;)Ljava/lang/Object;",
+        vec![Array(Box::new(Object("java/lang/String".to_string())), 2)],
+        Object("java/lang/Object".to_string()),
+    )]
+    fn parses_method(
+        #[case] input: &str,
+        #[case] parameters: Vec<TypeDescriptor>,
+        #[case] return_type: TypeDescriptor,
+    ) {
+        let parsed = input.parse::<MethodDescriptor>().unwrap();
+        assert_eq!(
+            parsed,
+            MethodDescriptor {
+                parameters,
+                return_type,
+            }
+        );
+    }
+
+    #[rstest]
+    #[case("()V")]
+    #[case("(I)I")]
+    #[case("(IJ)Z")]
+    #[case("(Ljava/lang/String;[I)V")]
+    #[case("([[Ljava/lang/String;)Ljava/lang/Object;")]
+    fn method_round_trips(#[case] descriptor: &str) {
+        let parsed = descriptor.parse::<MethodDescriptor>().unwrap();
+        assert_eq!(parsed.to_string(), descriptor);
+    }
+
+    #[rstest]
+    #[case("V", Error::InvalidFormat("method descriptor must start with a '('"))]
+    #[case("()", Error::UnexpectedEOF)]
+    #[case("())", Error::InvalidFormat("missing return type"))]
+    fn method_parse_errors(#[case] input: &str, #[case] expected: Error) {
+        let err = input.parse::<MethodDescriptor>().unwrap_err();
+        assert_eq!(err.to_string(), expected.to_string());
+    }
+}

@@ -20,3 +20,6 @@ parking_lot = "0.12.4"
 thiserror = "2.0.12"
 tracing = { version = "0.1.41", default-features = false }
 tracing-subscriber = { version = "0.3.19", default-features = false, features = ["fmt", "env-filter"] }
+
+[dev-dependencies]
+rstest = { version = "0.26.1", default-features = false }
