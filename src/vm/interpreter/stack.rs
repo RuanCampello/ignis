@@ -1,6 +1,6 @@
 //! This module deals with operand stack, local-variables and stack frames.
 
-use crate::vm::{VmError, interpreter::instructions::opcode::Opcode, runtime::heap::with_heap};
+use crate::vm::{VmError, interpreter::instructions::opcode::Opcode};
 use std::{fmt::Display, sync::Arc};
 use thiserror::Error;
 use tracing::trace;
@@ -157,15 +157,14 @@ impl StackFrame {
         let idx: i32 = self.pop().unwrap();
         let array_idx: i32 = self.pop().unwrap();
 
-        let value = with_heap(|heap| heap.get_array_value(array_idx, idx))?;
-        let value: V = V::from_slice(&value);
+        // let value = with_heap(|heap| heap.get_array_value(array_idx, idx))?;
+        // let value: V = V::from_slice(&value);
 
-        self.push(value)?;
-        self.next_pc();
+        // self.push(value)?;
+        // self.next_pc();
 
-        trace!("{code} -> array_idx={array_idx}, index={idx}, value={value}");
-
-        Ok(())
+        // trace!("{code} -> array_idx={array_idx}, index={idx}, value={value}");
+        todo!();
     }
 
     pub(in crate::vm::interpreter) fn positional_store<V: StackValue + Display>(
@@ -196,17 +195,17 @@ impl StackFrame {
         &mut self,
         code: Opcode,
     ) -> super::Result<()> {
-        let idx = self.pop().unwrap();
-        let array_idx = self.pop().unwrap();
-        let value = with_heap(|heap| heap.get_array_value(array_idx, idx))?;
+        // let idx = self.pop().unwrap();
+        // let array_idx = self.pop().unwrap();
+        // let value = with_heap(|heap| heap.get_array_value(array_idx, idx))?;
 
-        let value: V = V::from_slice(&value);
+        // let value: V = V::from_slice(&value);
 
-        self.push(value);
-        self.next_pc();
+        // self.push(value);
+        // self.next_pc();
 
-        trace!("{code} -> array_idx={array_idx}, index={idx}, value={value}");
-        Ok(())
+        // trace!("{code} -> array_idx={array_idx}, index={idx}, value={value}");
+        todo!()
     }
 
     pub(in crate::vm::interpreter) fn binary_op<

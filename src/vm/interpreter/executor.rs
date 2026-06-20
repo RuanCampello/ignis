@@ -1,7 +1,7 @@
 use crate::vm::{
     Result,
     interpreter::{ValueRef, stack::Value},
-    runtime::{heap::with_mut_heap, method_area::with_method_area},
+    runtime::method_area::with_method_area,
 };
 
 // for as it now, executor is not going to hold any state

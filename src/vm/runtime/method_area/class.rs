@@ -3,7 +3,7 @@ use crate::vm::{
     interpreter::StackFrame,
     runtime::{
         RuntimeError,
-        heap::{BaseInstance, ClassInstance, Instance},
+        heap::{BaseInstance, ClassInstance, HEAP, Instance},
         method_area::{PRIMITIVE_TYPE, fill_fields_hierarchy, with_method_area},
     },
 };
@@ -172,7 +172,7 @@ impl Classes {
                     (module, patch)
                 }
                 _ => {
-                    todo!();
+                    todo!("unnamed module");
                 }
             }
         });

@@ -1,25 +1,26 @@
 use crate::vm::{
     Result, VmError,
-    runtime::{RuntimeError as Error, method_area::FieldValue},
+    runtime::{RuntimeError as Error, heap::object::Objects, method_area::FieldValue},
 };
+use dashmap::DashMap;
 use indexmap::IndexMap;
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::{
+    LazyLock,
+    atomic::{AtomicI32, Ordering},
+};
+
+mod object;
 
 #[derive(Debug)]
 pub(in crate::vm) struct Heap {
     /// Heap storage keyed by object reference id.
-    objects: IndexMap<i32, HeapValue>,
+    objects: Objects<HeapValue>,
+    ref_by_string: DashMap<String, i32>,
 }
 
-static HEAP: Lazy<RwLock<Heap>> = Lazy::new(|| {
-    RwLock::new(Heap {
-        objects: IndexMap::new(),
-    })
-});
-
-static HEAP_ID: AtomicI32 = AtomicI32::new(1);
+pub(in crate::vm::runtime) static HEAP: LazyLock<Heap> = LazyLock::new(Heap::default);
 
 #[derive(Debug)]
 /// Represents a value on the heap.
@@ -54,22 +55,6 @@ pub(in crate::vm) struct ClassInstance {
     pub(in crate::vm::runtime) class_id: usize,
 }
 
-pub(in crate::vm) fn with_heap<C, R>(callback: C) -> R
-where
-    C: FnOnce(&Heap) -> R,
-{
-    let heap = HEAP.read();
-    callback(&heap)
-}
-
-pub(in crate::vm) fn with_mut_heap<C, R>(callback: C) -> R
-where
-    C: FnOnce(&mut Heap) -> R,
-{
-    let mut heap = HEAP.write();
-    callback(&mut heap)
-}
-
 impl Heap {
     /// Allocates a new *zeroed* array in the heap with the given `length`.
     /// Returns its heap ID.
@@ -82,31 +67,25 @@ impl Heap {
             name: name.to_string(),
             value,
         };
-        let id = Self::next_id();
 
-        self.objects.insert(id, HeapValue::Array(array));
-        id
+        self.objects.insert(HeapValue::Array(array))
     }
 
     // Allocates a new array in the heap initialised with the given values.
     // Returns its heap ID.
     pub fn allocate_array_with_values(&mut self, name: &str, array: Vec<u8>) -> i32 {
-        let id = Self::next_id();
         let array = Array {
             name: name.to_string(),
             value: array,
         };
 
-        self.objects.insert(id, HeapValue::Array(array));
-        id
+        self.objects.insert(HeapValue::Array(array))
     }
 
     /// Allocates this given object instance into the heap.
     /// Returns its heap ID.
     pub fn allocate_instance(&mut self, instance: BaseInstance) -> i32 {
-        let id = Self::next_id();
-        self.objects.insert(id, HeapValue::Object(instance));
-        id
+        self.objects.insert(HeapValue::Object(instance))
     }
 
     pub fn get_field_value<'a>(
@@ -115,33 +94,44 @@ impl Heap {
         classname: &'a str,
         field: &'a str,
     ) -> Result<Vec<i32>> {
+        let error = || Error::InvalidObjectAcess {
+            classname: classname.to_string(),
+            field: field.to_string(),
+        };
+
         if obj_ref == 0 {
-            return Err(Error::InvalidObjectAcess {
-                classname: classname.to_string(),
-                field: field.to_string(),
-            }
-            .into());
+            return Err(error().into());
         }
 
-        match self.objects.get(&obj_ref) {
-            Some(HeapValue::Object(instance)) => instance.get_value(classname, field),
-            _ => Err(Error::InvalidObjectAcess {
-                classname: classname.to_string(),
-                field: field.to_string(),
-            }
-            .into()),
+        let entry = self.objects.get(&obj_ref).ok_or_else(|| error())?;
+        match entry.value() {
+            HeapValue::Object(instance) => instance.get_value(classname, field),
+            _ => Err(error().into()),
         }
     }
 
     pub fn get_array_value(&self, array_ref: i32, index: i32) -> Result<Vec<i32>> {
-        match self.objects.get(&array_ref) {
-            Some(HeapValue::Array(array)) => array.get(index),
-            _ => Err(Error::InvalidArrayAccess(index as usize).into()),
+        let entry = self
+            .objects
+            .get(&array_ref)
+            .ok_or_else(|| Error::InvalidArrayEntrySize(index as usize))?;
+
+        match entry.value() {
+            HeapValue::Array(array) => {
+                let value = array.get(index)?;
+                Ok(value)
+            }
+            _ => Err(Error::InvalidArrayEntrySize(index as usize).into()),
         }
     }
+}
 
-    fn next_id() -> i32 {
-        HEAP_ID.fetch_add(1, Ordering::Relaxed)
+impl Default for Heap {
+    fn default() -> Self {
+        Self {
+            objects: Objects::new(),
+            ref_by_string: DashMap::new(),
+        }
     }
 }
 
