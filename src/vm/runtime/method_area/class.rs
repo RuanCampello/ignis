@@ -11,7 +11,10 @@ use dashmap::DashMap;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use parking_lot::RwLock;
-use std::sync::{Arc, LazyLock};
+use std::{
+    ops::DerefMut,
+    sync::{Arc, LazyLock},
+};
 
 #[derive(Debug, Default)]
 pub(in crate::vm::runtime) struct Classes {
@@ -177,7 +180,30 @@ impl Classes {
             }
         });
 
-        todo!()
+        let class_instance_id = HEAP.allocate_instance(instance);
+
+        with_method_area(|area| {
+            if patch {
+                let modules = &area.modules;
+                let class_to_patch = &modules.class_to_patch;
+                let mut guard = class_to_patch.lock();
+
+                match guard.deref_mut() {
+                    Some(to_patch) => to_patch.insert(class_instance_id),
+                    _ => {
+                        return Err(
+                            RuntimeError::Execution("pathing was already executed".into()).into(),
+                        );
+                    }
+                };
+            }
+
+            Ok::<_, VmError>(())
+        })?;
+
+        // TODO: inject mirror class
+
+        Ok(())
     }
 
     fn get_impl(&self, name: &str) -> Option<ClassWithId> {

@@ -10,8 +10,15 @@ use crate::{
 use dashmap::DashMap;
 use indexmap::IndexMap;
 use once_cell::sync::{Lazy, OnceCell};
-use parking_lot::RwLock;
-use std::{collections::HashMap, fs::File, io::Read, ops::Index, path::Path, sync::Arc};
+use parking_lot::{Mutex, RwLock};
+use std::{
+    collections::{HashMap, HashSet},
+    fs::File,
+    io::Read,
+    ops::Index,
+    path::Path,
+    sync::Arc,
+};
 
 pub(in crate::vm) use class::{Class, FieldValue};
 
@@ -48,6 +55,7 @@ pub(in crate::vm) struct MethodArea {
 #[derive(Debug)]
 pub(in crate::vm) struct Modules {
     registry: DashMap<String, i32>,
+    class_to_patch: Mutex<Option<HashSet<i32>>>,
 }
 
 struct Pool<'c> {
@@ -158,6 +166,7 @@ impl Modules {
     fn new() -> Self {
         Self {
             registry: DashMap::new(),
+            class_to_patch: Mutex::new(Some(HashSet::new())),
         }
     }
 }

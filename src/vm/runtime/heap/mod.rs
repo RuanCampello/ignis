@@ -25,7 +25,7 @@ pub(in crate::vm::runtime) static HEAP: LazyLock<Heap> = LazyLock::new(Heap::def
 #[derive(Debug)]
 /// Represents a value on the heap.
 enum HeapValue {
-    Object(BaseInstance),
+    Object(Instance),
     Array(Array),
 }
 
@@ -84,7 +84,7 @@ impl Heap {
 
     /// Allocates this given object instance into the heap.
     /// Returns its heap ID.
-    pub fn allocate_instance(&mut self, instance: BaseInstance) -> i32 {
+    pub fn allocate_instance(&self, instance: Instance) -> i32 {
         self.objects.insert(HeapValue::Object(instance))
     }
 
@@ -170,9 +170,7 @@ impl Instance {
                 .find_map(|(_, map)| map.get_mut(field_name_type))
         })
     }
-}
 
-impl BaseInstance {
     fn get_value(&self, classname: &str, field: &str) -> Result<Vec<i32>> {
         self.lookup_field(classname, field)
             .and_then(|value| Some(value.value()))
@@ -183,8 +181,13 @@ impl BaseInstance {
     }
 
     fn lookup_field(&self, from: &str, field: &str) -> Option<&FieldValue> {
-        match self.fields.get_index_of(from) {
-            Some(index) => self
+        let instance = match self {
+            Self::Base(instance) => instance,
+            Self::Class(class) => &class.instance,
+        };
+
+        match instance.fields.get_index_of(from) {
+            Some(index) => instance
                 .fields
                 .iter()
                 .take(index + 1)
