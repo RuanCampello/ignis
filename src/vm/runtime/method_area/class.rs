@@ -1,5 +1,5 @@
 use crate::vm::{
-    Result,
+    Result, VmError,
     interpreter::StackFrame,
     runtime::{RuntimeError, method_area::with_method_area},
 };
@@ -9,10 +9,10 @@ use once_cell::sync::OnceCell;
 use parking_lot::RwLock;
 use std::sync::Arc;
 
-/// The already loaded classes
 #[derive(Debug)]
 pub(in crate::vm::runtime) struct Classes {
-    classes: DashMap<String, Class>,
+    classes: DashMap<String, ClassEntry>,
+    index: DashMap<usize, Arc<ClassEntry>>,
 }
 
 #[derive(Debug)]
@@ -47,6 +47,66 @@ pub(in crate::vm) struct Context {
 #[derive(Debug)]
 pub(in crate::vm) struct FieldValue {
     pub value: RwLock<Vec<i32>>,
+}
+
+#[derive(Debug)]
+struct ClassEntry {
+    id: usize,
+    class: Arc<Class>,
+}
+
+/// a class with its id and name
+type ClassWithId = (usize, String, Arc<Class>);
+
+impl Classes {
+    pub fn is_loaded(&self, name: &str) -> bool {
+        let name = undecorate_name(name);
+        self.classes.contains_key(name)
+    }
+
+    /// tries to get a class by its name and loads it if necessary
+    pub fn get(&self, name: &str) -> Result<Arc<Class>> {
+        self.get_with_id(name).map(|(_, _, class)| class)
+    }
+
+    pub fn get_with_id(&self, name: &str) -> Result<ClassWithId> {
+        let name = undecorate_name(name);
+
+        if let Some((id, key, class)) = self.get_impl(name) {
+            return Ok((id, key, class));
+        }
+
+        let class = match name.starts_with('[') {
+            true => todo!(),
+            _ => with_method_area(|area| area.load_from_file(name))?,
+        };
+
+        todo!()
+    }
+
+    pub fn get_by_id(&self, id: usize) -> Result<Arc<Class>> {
+        self.index
+            .get(&id)
+            .map(|entry| Arc::clone(&entry.class))
+            .ok_or_else(|| {
+                RuntimeError::Execution(format!("class with id {id} was not found")).into()
+            })
+    }
+
+    pub fn insert(&self, class: Arc<Class>, class_ref: Option<i16>) -> Result<ClassWithId> {
+        let name = class.name.as_str();
+        if let Some((id, name, class)) = self.get_impl(name) {
+            return Ok((id, name.to_string(), class));
+        }
+
+        todo!()
+    }
+
+    fn get_impl(&self, name: &str) -> Option<ClassWithId> {
+        self.classes
+            .get(name)
+            .map(|entry| (entry.id, entry.key().to_string(), Arc::clone(&entry.class)))
+    }
 }
 
 impl Class {
@@ -137,5 +197,13 @@ impl Clone for FieldValue {
         Self {
             value: RwLock::new(value),
         }
+    }
+}
+
+#[inline(always)]
+fn undecorate_name(name: &str) -> &str {
+    match name.starts_with('L') && name.ends_with(';') {
+        true => &name[1..name.len() - 1],
+        _ => name,
     }
 }

@@ -34,4 +34,7 @@ pub enum RuntimeError {
         filepath: String,
         source: std::io::Error,
     },
+
+    #[error("Failed execution due to: {0}")]
+    Execution(String),
 }
