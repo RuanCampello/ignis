@@ -13,13 +13,17 @@ use once_cell::sync::OnceCell;
 use parking_lot::RwLock;
 use std::{
     ops::DerefMut,
-    sync::{Arc, LazyLock},
+    sync::{
+        Arc, LazyLock,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 #[derive(Debug, Default)]
 pub(in crate::vm::runtime) struct Classes {
-    classes: DashMap<String, ClassEntry>,
+    classes: DashMap<String, Arc<ClassEntry>>,
     index: DashMap<usize, Arc<ClassEntry>>,
+    next_id: AtomicUsize,
 }
 
 #[derive(Debug)]
@@ -103,11 +107,11 @@ impl Classes {
         }
 
         let class = match name.starts_with('[') {
-            true => todo!(),
+            true => todo!("generate synthetic class"),
             _ => with_method_area(|area| area.load_from_file(name))?,
         };
 
-        todo!()
+        self.insert(class, None)
     }
 
     pub fn get_by_id(&self, id: usize) -> Result<Arc<Class>> {
@@ -119,18 +123,51 @@ impl Classes {
             })
     }
 
-    pub fn insert(&self, class: Arc<Class>, class_ref: Option<i16>) -> Result<ClassWithId> {
+    pub fn insert(&self, class: Arc<Class>, class_ref: Option<i32>) -> Result<ClassWithId> {
         let name = class.name.as_str();
         if let Some((id, name, class)) = self.get_impl(name) {
             return Ok((id, name.to_string(), class));
         }
 
-        todo!()
+        match !name.starts_with('[') {
+            true => self.insert_class(&class, None, class_ref),
+            _ => todo!(),
+        }
+    }
+
+    fn insert_class(
+        &self,
+        class: &Arc<Class>,
+        component_ref_type: Option<i32>,
+        class_loader_ref: Option<i32>,
+    ) -> Result<ClassWithId> {
+        let name = class.name.as_str();
+        if let Some((id, key, class)) = self.get_impl(name) {
+            return Ok((id, key.to_string(), Arc::clone(&class)));
+        }
+
+        let class_id = self.insert_impl(name, Arc::clone(class));
+
+        let (class_class_id, _, class_class) = self.get_impl(Class::NAME).ok_or_else(|| {
+            RuntimeError::Execution(format!(
+                "{} class was not found in the loaded classes",
+                Class::NAME
+            ))
+        })?;
+
+        Self::create_class_instance(
+            (class, class_id),
+            (&class_class, class_class_id),
+            component_ref_type,
+            class_loader_ref,
+        )?;
+
+        Ok((class_id, name.to_string(), Arc::clone(class)))
     }
 
     fn create_class_instance(
         class: (&Arc<Class>, usize),
-        class_class: (&Arc<usize>, usize),
+        class_class: (&Arc<Class>, usize),
         component_ref_type: Option<i32>,
         class_loader_ref: Option<i32>,
     ) -> Result<()> {
@@ -191,9 +228,8 @@ impl Classes {
                 match guard.deref_mut() {
                     Some(to_patch) => to_patch.insert(class_instance_id),
                     _ => {
-                        return Err(
-                            RuntimeError::Execution("pathing was already executed".into()).into(),
-                        );
+                        let err = RuntimeError::Execution("pathing was already executed".into());
+                        return Err(err.into());
                     }
                 };
             }
@@ -210,6 +246,18 @@ impl Classes {
         self.classes
             .get(name)
             .map(|entry| (entry.id, entry.key().to_string(), Arc::clone(&entry.class)))
+    }
+
+    fn insert_impl(&self, name: &str, class: Arc<Class>) -> usize {
+        let entry = self.classes.entry(name.to_string()).or_insert_with(|| {
+            let id = self.next_id.fetch_add(1, Ordering::SeqCst);
+            let entry = Arc::new(ClassEntry { class, id });
+
+            self.index.insert(id, Arc::clone(&entry));
+            entry
+        });
+
+        entry.value().id
     }
 }
 
