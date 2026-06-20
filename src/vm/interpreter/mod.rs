@@ -9,6 +9,7 @@ pub(in crate::vm) use stack::StackFrame;
 
 pub mod executor;
 mod instructions;
+mod ldc;
 mod stack;
 pub mod static_method;
 
