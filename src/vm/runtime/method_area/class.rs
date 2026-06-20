@@ -32,7 +32,7 @@ pub(in crate::vm) struct Class {
     methods: IndexMap<String, Arc<Method>>,
     static_fields: IndexMap<String, Arc<FieldValue>>,
     pub(super) parent: Option<String>,
-    modifiers: Modifiers,
+    modifiers: Modifier,
 
     fields_hierarchy: OnceCell<IndexMap<String, IndexMap<String, FieldValue>>>,
     fields_schema: IndexMap<String, FieldValue>,
@@ -69,7 +69,7 @@ struct ClassEntry {
 
 bitflags::bitflags! {
 #[derive(Debug, Clone, Copy)]
-struct Modifiers: u16 {
+struct Modifier: u16 {
     const Public     = 0x0001;
     const Private    = 0x0002;
     const Protected  = 0x0004;
@@ -107,7 +107,7 @@ impl Classes {
         }
 
         let class = match name.starts_with('[') {
-            true => todo!("generate synthetic class"),
+            true => Self::generate_synthetic_array(name),
             _ => with_method_area(|area| area.load_from_file(name))?,
         };
 
@@ -259,10 +259,25 @@ impl Classes {
 
         entry.value().id
     }
+
+    fn generate_synthetic_array(array_name: &str) -> Arc<Class> {
+        let array_name = array_name.replace('/', ".");
+
+        Arc::new(Class {
+            name: array_name,
+            parent: Some(Class::OBJECT.into()),
+            modifiers: Modifier::Public | Modifier::Final | Modifier::Abstract,
+            methods: IndexMap::new(),
+            static_fields: IndexMap::new(),
+            fields_schema: IndexMap::new(),
+            fields_hierarchy: OnceCell::new(),
+        })
+    }
 }
 
 impl Class {
     const NAME: &str = "java/lang/Class";
+    const OBJECT: &str = "java/lang/Object";
 
     pub fn with_classname(classname: &str) -> Self {
         Self {
@@ -271,7 +286,7 @@ impl Class {
             static_fields: IndexMap::new(),
             fields_schema: IndexMap::new(),
             fields_hierarchy: OnceCell::new(),
-            modifiers: Modifiers::empty(),
+            modifiers: Modifier::empty(),
             parent: None,
         }
     }
