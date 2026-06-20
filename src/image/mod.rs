@@ -1,6 +1,8 @@
 //! This module is responsable for dealing with `JImage` files that are
 //! used by the Java Plataform Module System
 
+#![allow(unused)]
+
 mod header;
 mod image;
 
@@ -35,7 +37,7 @@ pub(in crate::image) enum Endianness {
     Big,
 }
 
-pub(self) trait FromBytes: Sized {
+pub(in crate::image) trait FromBytes: Sized {
     fn from_le(bytes: &[u8]) -> Self;
     fn from_be(bytes: &[u8]) -> Self;
 }
@@ -51,7 +53,11 @@ macro_rules! impl_from_bytes {
 impl_from_bytes!(u16, u32, u64, i16, i32, i64, usize);
 
 #[inline]
-pub fn read<T: FromBytes>(bytes: &[u8], offset: usize, endianness: Endianness) -> Result<T, Error> {
+pub(self) fn read<T: FromBytes>(
+    bytes: &[u8],
+    offset: usize,
+    endianness: Endianness,
+) -> Result<T, Error> {
     let start = offset;
     let end = start + std::mem::size_of::<T>();
 
@@ -64,7 +70,7 @@ pub fn read<T: FromBytes>(bytes: &[u8], offset: usize, endianness: Endianness) -
 }
 
 #[inline]
-pub fn read_mut<T: FromBytes>(
+pub(self) fn read_mut<T: FromBytes>(
     bytes: &[u8],
     offset: &mut usize,
     endianness: Endianness,
