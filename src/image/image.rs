@@ -193,7 +193,19 @@ impl Image {
     }
 
     fn get_string(&self, index: usize) -> Result<&str, Error> {
-        todo!()
+        let offset = self.header.strings(index);
+        let string = &self.mmap[offset..];
+        let len = memchr::memchr(0, string).ok_or(Error::Other(format!(
+            "Failed to find null-termination in string: {string:02x?} from offset {offset}"
+        )))?;
+
+        let slice = &self.mmap[offset..offset + len];
+        let value = std::str::from_utf8(slice).map_err(|err| Error::Utf8 {
+            source: err,
+            data: slice.to_vec(),
+        })?;
+
+        Ok(value)
     }
 }
 

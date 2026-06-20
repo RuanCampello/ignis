@@ -18,6 +18,7 @@ use byteorder::{BigEndian, ByteOrder, LittleEndian};
 /// ╰──────────────────┴────────┴──────┴──────────────────────────────────────╯
 /// ```
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[repr(C)]
 pub(in crate::image) struct Header {
     version_major: u16,
     version_minor: u16,
@@ -68,6 +69,10 @@ impl Header {
         self.attributes_begins_at() + position
     }
 
+    pub(in crate::image) const fn strings(&self, position: usize) -> usize {
+        self.attributes_begins_at() + self.locations_size as usize + position
+    }
+
     pub(in crate::image) const fn data(&self, position: usize) -> usize {
         self.attributes_begins_at() + self.strings_size as usize + position
     }
@@ -90,7 +95,10 @@ impl TryFrom<&[u8]> for Header {
         let version_minor = (version & 0xFFFF) as u16;
 
         if (version_major, version_minor) != Self::SUPPORTED_VERSIONS {
-            todo!()
+            return Err(Error::InvalidVersion {
+                version_major,
+                version_minor,
+            });
         }
 
         let flags = read_mut(bytes, &mut position, endianness)?;

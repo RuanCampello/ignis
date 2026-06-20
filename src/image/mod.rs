@@ -17,6 +17,12 @@ pub(in crate::image) enum Error {
     },
     #[error("Unable to read from slice: [{start}..{end}]")]
     BadRead { start: usize, end: usize },
+    #[error("Invalid utf8: {source}. Invalid data: {{data:0x2?}}")]
+    Utf8 {
+        #[source]
+        source: std::str::Utf8Error,
+        data: Vec<u8>,
+    },
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
     #[error("Internal error: {0}")]
