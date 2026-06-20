@@ -1,12 +1,10 @@
-use std::{borrow::Cow, fs::File, io::Read, path::Path};
-
-use memmap2::Mmap;
-
 use crate::image::{
     Error,
     header::{Header, ResourceHeader},
     read,
 };
+use memmap2::Mmap;
+use std::{borrow::Cow, fs::File, io::Read, path::Path};
 
 /// A Java Image (JImage) file representation
 ///
@@ -15,6 +13,20 @@ use crate::image::{
 pub(crate) struct Image {
     header: Header,
     mmap: Mmap,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub(crate) struct ResourceName<'a> {
+    pub module: Cow<'a, str>,
+    pub parent: Cow<'a, str>,
+    pub base: Cow<'a, str>,
+    pub extension: Cow<'a, str>,
+}
+
+struct ResourceIter<'i> {
+    image: &'i Image,
+    front: usize,
+    back: usize,
 }
 
 /// `JImage` associated attributes
@@ -53,10 +65,7 @@ impl Image {
         let hash = Self::hash(name, Self::HASH_MULTIPLIER)?;
 
         let index = hash % items;
-        let value = {
-            let offset = self.header.redirect(index as usize);
-            read::<i32>(&self.mmap, offset, self.header.endianness())?
-        };
+        let value = self.redirect(index as usize)?;
 
         let index = match value {
             value if value < 0 => -1 - value as i32,
@@ -64,18 +73,26 @@ impl Image {
             _ => return Ok(None),
         };
 
-        let offset = {
-            let offset = self.header.offset(index as usize);
-            read(&self.mmap, offset, self.header.endianness())?
-        };
-
-        let attributes = self.attributes(offset)?;
+        let offset = self.offset(index as usize)?;
+        let attributes = self.attributes(offset as usize)?;
 
         if !self.check_resource(&attributes, name)? {
             return Ok(None);
         }
 
         self.get_resource(&attributes)
+    }
+
+    #[inline(always)]
+    fn offset(&self, index: usize) -> Result<i32, Error> {
+        let offset = self.header.offset(index);
+        read(&self.mmap, offset, self.header.endianness())
+    }
+
+    #[inline(always)]
+    fn redirect(&self, index: usize) -> Result<i32, Error> {
+        let offset = self.header.redirect(index);
+        read(&self.mmap, offset, self.header.endianness())
     }
 
     fn get_resource(&self, attributes: &[u64; 8]) -> Result<Option<Cow<'_, [u8]>>, Error> {
@@ -192,6 +209,14 @@ impl Image {
         Ok(rem.is_empty())
     }
 
+    fn get_attribute(
+        &self,
+        attributes: &[u64; 8],
+        kind: AttributeKind,
+    ) -> Result<Cow<'_, str>, Error> {
+        todo!()
+    }
+
     fn get_string(&self, index: usize) -> Result<&str, Error> {
         let offset = self.header.strings(index);
         let string = &self.mmap[offset..];
@@ -206,6 +231,95 @@ impl Image {
         })?;
 
         Ok(value)
+    }
+}
+
+impl<'r> ResourceName<'r> {
+    pub fn get_full_name(&self) -> (String, String) {
+        let mut full_name =
+            String::with_capacity(self.parent.len() + self.base.len() + self.extension.len());
+
+        full_name.push_str(self.parent.as_ref());
+        if !self.parent.is_empty() {
+            full_name.push('/');
+        }
+
+        full_name.push_str(self.base.as_ref());
+        if !self.extension.is_empty() {
+            full_name.push('.');
+        }
+        full_name.push_str(self.extension.as_ref());
+
+        (self.module.to_string(), full_name)
+    }
+}
+
+impl<'i> ResourceIter<'i> {
+    pub fn new(image: &'i Image) -> Self {
+        Self {
+            image,
+            front: 0,
+            back: image.header.items() as usize,
+        }
+    }
+}
+
+impl<'i> Iterator for ResourceIter<'i> {
+    type Item = Result<ResourceName<'i>, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.front < self.back {
+            let idx = self.front;
+            self.front += 1;
+
+            let resource_result = (|| {
+                let offset = self.image.offset(idx)? as usize;
+                let attribute = self.image.attributes(offset)?;
+                let module = self
+                    .image
+                    .get_attribute(&attribute, AttributeKind::Module)?;
+
+                if matches!(module.as_ref(), "" | "modules" | "packages") {
+                    return Ok(None);
+                }
+
+                let parent = self
+                    .image
+                    .get_attribute(&attribute, AttributeKind::Parent)?;
+                let base = self.image.get_attribute(&attribute, AttributeKind::Base)?;
+                let extension = self
+                    .image
+                    .get_attribute(&attribute, AttributeKind::Extension)?;
+
+                Ok(Some(ResourceName {
+                    module,
+                    parent,
+                    base,
+                    extension,
+                }))
+            })();
+
+            match resource_result {
+                Ok(Some(r)) => return Some(Ok(r)),
+                Ok(None) => continue,
+                Err(e) => return Some(Err(e)),
+            }
+        }
+
+        None
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, Some(self.back.saturating_sub(self.front)))
+    }
+}
+
+impl<'i> IntoIterator for &'i Image {
+    type Item = Result<ResourceName<'i>, Error>;
+    type IntoIter = ResourceIter<'i>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        ResourceIter::new(self)
     }
 }
 

@@ -9,7 +9,7 @@ pub(crate) mod image;
 pub(in crate::image) const MAGIC: u32 = 0xCAFEDADA;
 
 #[derive(Debug, thiserror::Error)]
-pub(in crate::image) enum Error {
+pub(crate) enum Error {
     #[error("File doesn't match a valid jimage. Found {magic:02x?}")]
     Magic { magic: [u8; 4] },
     #[error("Invalid jimage version: {version_major}.{version_minor}")]
