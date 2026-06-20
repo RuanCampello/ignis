@@ -24,7 +24,7 @@ static HEAP_ID: AtomicI32 = AtomicI32::new(1);
 #[derive(Debug)]
 /// Represents a value on the heap.
 enum HeapValue {
-    Object(Instance),
+    Object(BaseInstance),
     Array(Array),
 }
 
@@ -34,13 +34,26 @@ struct Array {
     value: Vec<u8>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+pub(in crate::vm) enum Instance {
+    Base(BaseInstance),
+    Class(ClassInstance),
+}
+
+#[derive(Debug, Clone)]
 /// Represents a Java object instance in the JVM heap.
-pub(in crate::vm) struct Instance {
+pub(in crate::vm) struct BaseInstance {
     /// Fully qualified class name of this object.
     pub name: String,
     /// Nested map of fields organized by class name and field name.
     pub fields: IndexMap<String, IndexMap<String, FieldValue>>,
+}
+
+#[derive(Debug, Clone)]
+pub(in crate::vm) struct ClassInstance {
+    base: BaseInstance,
+
+    pub(in crate::vm::runtime) class_id: usize,
 }
 
 pub(in crate::vm) fn with_heap<C, R>(callback: C) -> R
@@ -92,7 +105,7 @@ impl Heap {
 
     /// Allocates this given object instance into the heap.
     /// Returns its heap ID.
-    pub fn allocate_instance(&mut self, instance: Instance) -> i32 {
+    pub fn allocate_instance(&mut self, instance: BaseInstance) -> i32 {
         let id = Self::next_id();
         self.objects.insert(id, HeapValue::Object(instance));
         id
@@ -134,7 +147,7 @@ impl Heap {
     }
 }
 
-impl Instance {
+impl BaseInstance {
     fn get_value(&self, classname: &str, field: &str) -> Result<Vec<i32>> {
         self.lookup_field(classname, field)
             .and_then(|value| Some(value.value()))

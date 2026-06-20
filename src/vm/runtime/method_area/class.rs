@@ -102,6 +102,15 @@ impl Classes {
         todo!()
     }
 
+    fn create_class_instance(
+        class: (&Arc<Class>, usize),
+        class_class: (&Arc<usize>, usize),
+        component_ref_type: Option<i32>,
+        class_ref: Option<i32>,
+    ) {
+        todo!()
+    }
+
     fn get_impl(&self, name: &str) -> Option<ClassWithId> {
         self.classes
             .get(name)

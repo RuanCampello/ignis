@@ -3,7 +3,7 @@ use crate::{
     vm::{
         Result, VmError,
         interpreter::StackFrame,
-        runtime::{RuntimeError, heap::Instance},
+        runtime::{RuntimeError, heap::BaseInstance},
     },
 };
 use dashmap::DashMap;
@@ -133,9 +133,9 @@ impl MethodArea {
         todo!("load from file")
     }
 
-    pub fn create_instance_with_default(&self, classname: &str) -> Result<Instance> {
+    pub fn create_instance_with_default(&self, classname: &str) -> Result<BaseInstance> {
         let class = with_method_area(|area| area.get(classname))?;
-        Ok(Instance {
+        Ok(BaseInstance {
             name: classname.to_string(),
             fields: class.get_instance_fields()?.clone(),
         })
