@@ -43,16 +43,14 @@ pub(in crate::vm) enum Instance {
 #[derive(Debug, Clone)]
 /// Represents a Java object instance in the JVM heap.
 pub(in crate::vm) struct BaseInstance {
-    /// Fully qualified class name of this object.
-    pub name: String,
+    pub id: usize,
     /// Nested map of fields organized by class name and field name.
     pub fields: IndexMap<String, IndexMap<String, FieldValue>>,
 }
 
 #[derive(Debug, Clone)]
 pub(in crate::vm) struct ClassInstance {
-    base: BaseInstance,
-
+    pub(in crate::vm::runtime) instance: BaseInstance,
     pub(in crate::vm::runtime) class_id: usize,
 }
 
@@ -144,6 +142,43 @@ impl Heap {
 
     fn next_id() -> i32 {
         HEAP_ID.fetch_add(1, Ordering::Relaxed)
+    }
+}
+
+impl Instance {
+    pub fn set_field_value(
+        &mut self,
+        class_name: &str,
+        field_name_type: &str,
+        value: Vec<i32>,
+    ) -> Result<()> {
+        self.lookup_mut_field(class_name, field_name_type)
+            .map(|v| v.set(value))
+            .ok_or_else(|| {
+                Error::Execution(format!(
+                    "error setting value for instance: {class_name}.{field_name_type}"
+                ))
+            })?
+    }
+
+    fn lookup_mut_field(
+        &mut self,
+        starting: &str,
+        field_name_type: &str,
+    ) -> Option<&mut FieldValue> {
+        let instance = match self {
+            Self::Base(instance) => instance,
+            Self::Class(class) => &mut class.instance,
+        };
+
+        instance.fields.get_index_of(starting).and_then(|index| {
+            instance
+                .fields
+                .iter_mut()
+                .take(index + 1)
+                .rev()
+                .find_map(|(_, map)| map.get_mut(field_name_type))
+        })
     }
 }
 

@@ -134,11 +134,7 @@ impl MethodArea {
     }
 
     pub fn create_instance_with_default(&self, classname: &str) -> Result<BaseInstance> {
-        let class = with_method_area(|area| area.get(classname))?;
-        Ok(BaseInstance {
-            name: classname.to_string(),
-            fields: class.get_instance_fields()?.clone(),
-        })
+        todo!()
     }
 
     pub(crate) fn fill_fields_hierarchy(

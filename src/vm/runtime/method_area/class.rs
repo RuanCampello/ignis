@@ -1,7 +1,11 @@
 use crate::vm::{
     Result, VmError,
     interpreter::StackFrame,
-    runtime::{RuntimeError, method_area::with_method_area},
+    runtime::{
+        RuntimeError,
+        heap::{BaseInstance, ClassInstance, Instance},
+        method_area::{PRIMITIVE_TYPE, with_method_area},
+    },
 };
 use dashmap::DashMap;
 use indexmap::IndexMap;
@@ -107,7 +111,27 @@ impl Classes {
         class_class: (&Arc<usize>, usize),
         component_ref_type: Option<i32>,
         class_ref: Option<i32>,
-    ) {
+    ) -> Result<()> {
+        let (class, id) = class;
+        let mut instance = Instance::Class(ClassInstance {
+            class_id: id,
+            instance: BaseInstance {
+                id,
+                fields: class.get_instance_fields()?.clone(),
+            },
+        });
+        instance.set_field_value(
+            Class::NAME,
+            "componentType",
+            vec![component_ref_type.unwrap_or(0)],
+        )?;
+
+        let primitive = PRIMITIVE_TYPE
+            .contains_key(class.name.as_str())
+            .then_some(1)
+            .unwrap_or(0);
+        instance.set_field_value(Class::NAME, "primitive", vec![primitive])?;
+
         todo!()
     }
 
@@ -119,6 +143,8 @@ impl Classes {
 }
 
 impl Class {
+    const NAME: &str = "java/lang/Class";
+
     pub fn with_classname(classname: &str) -> Self {
         Self {
             name: classname.to_string(),
