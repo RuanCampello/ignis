@@ -48,7 +48,7 @@ enum AttributeKind {
 
 impl Image {
     /// from [open-jdk11](https://github.com/AdoptOpenJDK/openjdk-jdk11u/blob/4f9c8c4c48683a77655faa63c23da2f77cb208d0/src/java.base/share/native/libjimage/imageFile.hpp#L162)
-    const HASH_MULTIPLIER: u32 = 0;
+    const HASH_MULTIPLIER: u32 = 0x01000193;
     const SUPPORTED_DECOMPRESSOR: &str = "zip";
 
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
@@ -119,7 +119,7 @@ impl Image {
 
                 let start = ResourceHeader::SIZE;
                 let end = start + resource_header.compressed_size as usize;
-                let payload = &self.mmap[start..end];
+                let payload = &compressed[start..end];
                 let mut decoder = flate2::read::ZlibDecoder::new(payload);
                 let mut uncompressed_payload =
                     vec![0u8; resource_header.uncompressed_size as usize];
@@ -157,27 +157,29 @@ impl Image {
                 break;
             }
 
-            let len = ((value & 0b0000_0111) + 1) as usize;
-            let value = {
-                if !(1..=8).contains(&len) {
-                    return Err(Error::Other(format!("Invalid attribute length: {len}")));
-                }
+            let len = (value & 0b0000_0111) + 1;
+            let value = self.get_attribute_value(position + 1, len)?;
 
-                let mut value = 0;
-                for i in 0..len {
-                    value <<= 8;
-                    value |= self.mmap[i + position] as u64;
-                }
-
-                value
-            };
-
-            position += 1 + len;
+            position += 1 + len as usize;
 
             attributes[kind as usize] = value;
         }
 
         Ok(attributes)
+    }
+
+    fn get_attribute_value(&self, position: usize, len: u8) -> Result<u64, Error> {
+        if !(1..=8).contains(&len) {
+            return Err(Error::Other(format!("invalid attribute length: {len}")));
+        }
+
+        let mut value = 0;
+        for i in 0..len as usize {
+            value <<= 8;
+            value |= self.mmap[i + position] as u64;
+        }
+
+        Ok(value)
     }
 
     /// checks the attributes of a resource based on its full name
@@ -187,7 +189,7 @@ impl Image {
             (AttributeKind::Module, "/"),
             (AttributeKind::Parent, "/"),
             (AttributeKind::Base, "/"),
-            (AttributeKind::Extension, "/"),
+            (AttributeKind::Extension, "."),
         ];
 
         let mut rem = name;
@@ -197,7 +199,7 @@ impl Image {
             let part = self.get_string(offset)?;
 
             if !part.is_empty() {
-                let Some(stripped) = rem.strip_prefix(prefix).and_then(|r| r.strip_suffix(part))
+                let Some(stripped) = rem.strip_prefix(prefix).and_then(|r| r.strip_prefix(part))
                 else {
                     return Ok(false);
                 };

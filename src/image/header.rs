@@ -74,11 +74,14 @@ impl Header {
     }
 
     pub(in crate::image) const fn data(&self, position: usize) -> usize {
-        self.attributes_begins_at() + self.strings_size as usize + position
+        self.attributes_begins_at()
+            + self.locations_size as usize
+            + self.strings_size as usize
+            + position
     }
 
     const fn attributes_begins_at(&self) -> usize {
-        Self::SIZE + self.bytes_length()
+        Self::SIZE + self.bytes_length() * 2
     }
 }
 
