@@ -9,6 +9,7 @@
 
 #![allow(unused)]
 
+use crate::Args;
 use crate::vm::{
     interpreter::{executor::Executor, static_method::Static},
     runtime::method_area::{MethodArea, with_method_area},
@@ -24,11 +25,6 @@ mod descriptor;
 mod interpreter;
 mod runtime;
 
-#[derive(Default)]
-pub struct Args<'a> {
-    pub entry: &'a str,
-}
-
 #[derive(Error, Debug)]
 pub enum VmError {
     #[error(transparent)]
@@ -40,6 +36,8 @@ pub enum VmError {
 }
 
 static JAVA_HOME: OnceLock<PathBuf> = OnceLock::new();
+static PLATAFORM_CLASS_LOADER: OnceLock<i32> = OnceLock::new();
+static SYSTEM_CLASS_LAODER: OnceLock<i32> = OnceLock::new();
 
 pub(in crate::vm) type Result<T> = std::result::Result<T, VmError>;
 
@@ -48,28 +46,12 @@ const THREAD_GROUP: &str = "java/lang/ThreadGroup";
 const ACCESSIBLE_OBJ: &str = "java/lang/reflect/AccessibleObject";
 const ADDRESS_SIZE: &str = "ADDRESS_SIZE0";
 
-#[cfg(target_endian = "big")]
-const ENDIANNESS: i32 = 1;
-
-#[cfg(not(target_endian = "big"))]
-const ENDIANNESS: i32 = 0;
-
-/// Launches the VM.
+/// Launches the VM
 /// This initialise the JVM itself, loading the given class and invoking it `main` function.
-pub fn run(args: Args, path: &Path) -> Result<()> {
-    // TODO: set java home by the arguments
-    setup(path)?;
-
-    Static::initialise(UNSAFE_CONSTANTS)?;
-    let uc = with_method_area(|area| area.get(UNSAFE_CONSTANTS))?;
-    let be = uc.get_static("BIG_ENDIAN").unwrap();
-    be.set(vec![ENDIANNESS])?;
-
-    let address = uc.get_static(ADDRESS_SIZE).unwrap();
-    address.set(vec![8]); // we are going to set only for 64 bit machines
-    Static::initialise(ACCESSIBLE_OBJ)?;
-
-    let obj = Executor::default_constructor(THREAD_GROUP)?;
+pub fn run(args: Args, java_home: impl AsRef<Path>) -> Result<()> {
+    JAVA_HOME
+        .set(java_home.as_ref().to_path_buf())
+        .expect("JAVA_HOME was already set");
 
     todo!()
 }
