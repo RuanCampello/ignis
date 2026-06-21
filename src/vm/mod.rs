@@ -23,9 +23,9 @@ use std::{
 use thiserror::Error;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
-mod classpath;
 mod descriptor;
 mod interpreter;
+mod properties;
 mod runtime;
 
 #[derive(Error, Debug)]
