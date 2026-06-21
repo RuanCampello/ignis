@@ -9,6 +9,7 @@ pub struct Args<'a> {
     pub entry: &'a str,
     pub program_args: Vec<&'a str>,
     pub system_properties: IndexMap<&'a str, &'a str>,
+    pub class_path: Option<&'a str>,
     pub jar_mode: bool,
 }
 

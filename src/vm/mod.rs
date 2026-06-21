@@ -10,10 +10,12 @@
 #![allow(unused)]
 
 use crate::Args;
+use crate::vm::runtime::RuntimeError;
 use crate::vm::{
     interpreter::{executor::Executor, static_method::Static},
     runtime::method_area::{MethodArea, with_method_area},
 };
+use once_cell::sync::OnceCell;
 use std::{
     path::{Path, PathBuf},
     sync::OnceLock,
@@ -21,6 +23,7 @@ use std::{
 use thiserror::Error;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
+mod classpath;
 mod descriptor;
 mod interpreter;
 mod runtime;
@@ -33,11 +36,14 @@ pub enum VmError {
     Interpreter(#[from] interpreter::InterpreterError),
     #[error(transparent)]
     Image(#[from] crate::image::Error),
+    #[error("I/O operation failed due to: {0}")]
+    IO(#[from] std::io::Error),
 }
 
 static JAVA_HOME: OnceLock<PathBuf> = OnceLock::new();
 static PLATAFORM_CLASS_LOADER: OnceLock<i32> = OnceLock::new();
 static SYSTEM_CLASS_LAODER: OnceLock<i32> = OnceLock::new();
+static CLASS_PATH: OnceCell<String> = OnceCell::new();
 
 pub(in crate::vm) type Result<T> = std::result::Result<T, VmError>;
 
@@ -52,6 +58,14 @@ pub fn run(args: Args, java_home: impl AsRef<Path>) -> Result<()> {
     JAVA_HOME
         .set(java_home.as_ref().to_path_buf())
         .expect("JAVA_HOME was already set");
+
+    let entry = args.entry;
+
+    if entry.is_empty() {
+        return Err(RuntimeError::Execution("entry class name cannot be empty".into()).into());
+    }
+
+    args.resolve_class_path()?;
 
     todo!()
 }
