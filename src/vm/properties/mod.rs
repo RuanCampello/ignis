@@ -23,11 +23,10 @@ static DEFAULT_SYSTEM_PROPERTIES: LazyLock<IndexMap<&str, &str>> = LazyLock::new
         ("java.home", "."),
         ("java.class.version", "61.0"),
         ("java.vm.name", "Ignis"),
-        ("java.vm.version", "1.0.0"),
+        ("java.vm.version", "0.1.0"),
         ("java.vm.vendor", "Ignis JVM"),
         ("java.vm.spec.name", "Java Virtual Machine Specification"),
         ("java.vm.spec.version", "17"),
-        ("java.vm.spec.vendor", "Oracle Corporation"),
         ("java.runtime.name", "Ignis JVM Runtime"),
         ("java.runtime.version", "17"),
         ("java.spec.version", "17"),
@@ -42,5 +41,28 @@ static DEFAULT_SYSTEM_PROPERTIES: LazyLock<IndexMap<&str, &str>> = LazyLock::new
     ])
 });
 
-static DEFAULT_PLATFORM_PROPERTIES: LazyLock<IndexMap<&str, &str>> =
-    LazyLock::new(|| IndexMap::default());
+/// Default platform properties for the JVM runtime
+///
+/// These are platform-specific properties that vary by OS and environment,
+/// not part of the standard Java SE specification. Includes properties like:
+/// - `sun.*` (vendor-specific JVM properties)
+/// - `display.*` (locale display properties)
+/// - `format.*` (locale format properties)
+/// - `stderr.encoding`, `stdin.encoding`, `stdout.encoding` (console encodings)
+/// - `native.encoding`, `sun.jnu.encoding` (native encoding)
+///
+/// See: OpenJDK source fragmentation:
+/// - src/java.base/unix/native/libjava/java_props_md.c (Unix)
+/// - src/java.base/windows/native/libjava/java_props_md.c (Windows)
+/// - jdk/src/share/lib/net.properties (networking defaults)
+///
+/// Note: Excludes standard system properties which are handled separately in
+/// `DEFAULT_SYSTEM_PROPERTIES`.
+static DEFAULT_PLATFORM_PROPERTIES: LazyLock<IndexMap<&str, &str>> = LazyLock::new(|| {
+    IndexMap::from([
+        ("sun.cpu.endian", os::endianess()),
+        ("sun.jnu.encoding", "UTF-8"),
+        ("stderr.encoding", "cp437"),
+        ("display.language", "en"),
+    ])
+});
