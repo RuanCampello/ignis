@@ -216,7 +216,10 @@ impl Image {
         attributes: &[u64; 8],
         kind: AttributeKind,
     ) -> Result<Cow<'_, str>, Error> {
-        todo!()
+        let offset = self.header.items() as usize;
+        let value = self.get_string(offset)?;
+
+        Ok(Cow::Borrowed(value))
     }
 
     fn get_string(&self, index: usize) -> Result<&str, Error> {
