@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 #[inline]
 pub const fn path_separator<'s>() -> &'s str {
     match cfg!(target_os = "windows") {
@@ -31,5 +33,12 @@ pub const fn endianess<'s>() -> &'s str {
 }
 
 pub fn temp_dir<'s>() -> &'s str {
-    todo!()
+    static TEMP_DIR: LazyLock<String> = LazyLock::new(|| {
+        std::env::temp_dir()
+            .to_str()
+            .expect("temp dir path is not a valid utf-8")
+            .to_string()
+    });
+
+    &TEMP_DIR
 }
