@@ -1,7 +1,24 @@
+use crate::{
+    Args,
+    vm::{Result, runtime::RuntimeError},
+};
 use indexmap::IndexMap;
+use once_cell::sync::OnceCell;
 use std::sync::LazyLock;
+
 mod classpath;
 mod os;
+
+/// User-overridable system properties, resolved once at startup
+///
+/// Holds [DEFAULT_SYSTEM_PROPERTIES] extended with any matching entries from
+/// [Args::system_properties]
+static OVERRIDDEN_SYSTEM_PROPERTIES: OnceCell<IndexMap<&str, &str>> = OnceCell::new();
+
+/// User-overridable platform properties, resolved once at startup
+///
+/// Holds [DEFAULT_PLATFORM_PROPERTIES] extended with any matching entries from [Args::system_properties]
+static OVERRIDDEN_PLATFORM_PROPERTIES: OnceCell<IndexMap<&str, &str>> = OnceCell::new();
 
 /// Default system properties returned by `java.lang.System.getProperties()`
 ///
@@ -66,3 +83,30 @@ static DEFAULT_PLATFORM_PROPERTIES: LazyLock<IndexMap<&str, &str>> = LazyLock::n
         ("display.language", "en"),
     ])
 });
+
+impl Args<'static> {
+    pub(crate) fn initialise_properties(&self) -> Result<()> {
+        let mut overridden_system_props = DEFAULT_SYSTEM_PROPERTIES.clone();
+        let mut overridden_platform_props = DEFAULT_PLATFORM_PROPERTIES.clone();
+
+        for (&key, &value) in &self.system_properties {
+            match overridden_platform_props.contains_key(&key) {
+                true => overridden_platform_props.insert(key, value),
+                false => overridden_system_props.insert(key, value),
+            };
+        }
+
+        OVERRIDDEN_PLATFORM_PROPERTIES
+            .set(overridden_platform_props)
+            .map_err(|existing| {
+                panic!("OVERRIDDEN_PLATFORM_PROPERTIES already initialised: {existing:?}")
+            });
+        OVERRIDDEN_SYSTEM_PROPERTIES
+            .set(overridden_system_props)
+            .map_err(|existing| {
+                panic!("OVERRIDDEN_SYSTEM_PROPERTIES already initialised: {existing:?}")
+            });
+
+        Ok(())
+    }
+}

@@ -54,7 +54,7 @@ const ADDRESS_SIZE: &str = "ADDRESS_SIZE0";
 
 /// Launches the VM
 /// This initialise the JVM itself, loading the given class and invoking it `main` function.
-pub fn run(args: Args, java_home: impl AsRef<Path>) -> Result<()> {
+pub fn run(args: Args<'static>, java_home: impl AsRef<Path>) -> Result<()> {
     JAVA_HOME
         .set(java_home.as_ref().to_path_buf())
         .expect("JAVA_HOME was already set");
@@ -66,6 +66,7 @@ pub fn run(args: Args, java_home: impl AsRef<Path>) -> Result<()> {
     }
 
     args.resolve_class_path()?;
+    args.initialise_properties()?;
 
     todo!()
 }
