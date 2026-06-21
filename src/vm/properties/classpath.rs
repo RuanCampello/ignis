@@ -1,6 +1,6 @@
 use crate::{
     Args,
-    vm::{Result, runtime::RuntimeError},
+    vm::{Result, properties::os, runtime::RuntimeError},
 };
 use dashmap::mapref::entry;
 use once_cell::sync::OnceCell;
@@ -96,14 +96,4 @@ fn is_wildcard(entry: &str) -> bool {
     }
 
     !Path::new(entry).exists()
-}
-
-mod os {
-    #[inline]
-    pub const fn path_separator<'s>() -> &'s str {
-        match cfg!(target_os = "windows") {
-            true => ";",
-            false => ":",
-        }
-    }
 }
