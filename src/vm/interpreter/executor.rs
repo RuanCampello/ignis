@@ -51,10 +51,10 @@ impl Executor {
             new_args.push(instance_ref.into());
             new_args.extend_from_slice(args);
 
-            args
+            new_args
         };
 
-        Self::execute_for_class(&class, method_name, args, None)
+        Self::execute_for_class(&class, method_name, &args, None)
     }
 
     pub(in crate::vm) fn constructor(
