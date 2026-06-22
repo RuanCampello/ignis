@@ -9,9 +9,9 @@
 
 #![allow(unused)]
 
-use crate::Args;
 use crate::vm::runtime::RuntimeError;
 use crate::vm::runtime::method_area::MethodArea;
+use crate::{Args, vm::runtime::method_area};
 use once_cell::sync::OnceCell;
 use std::{
     path::{Path, PathBuf},
@@ -75,6 +75,9 @@ pub fn run(args: Args<'static>, java_home: impl AsRef<Path>) -> Result<()> {
 fn setup(path: &Path) -> Result<()> {
     logger()?;
     MethodArea::initialise(path)?;
+
+    method_area::CLASSES.pre()?;
+    method_area::CLASSES.post()?;
 
     Ok(())
 }

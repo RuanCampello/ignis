@@ -1,3 +1,5 @@
+#![warn(unused_imports)]
+
 use crate::vm::{
     Result, VmError,
     interpreter::StackFrame,
@@ -15,15 +17,18 @@ use std::{
     ops::DerefMut,
     sync::{
         Arc, LazyLock,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicI8, AtomicUsize, Ordering},
     },
 };
+use tracing::trace;
 
 #[derive(Debug, Default)]
-pub(in crate::vm::runtime) struct Classes {
+pub(in crate::vm) struct Classes {
     classes: DashMap<String, Arc<ClassEntry>>,
     index: DashMap<usize, Arc<ClassEntry>>,
     next_id: AtomicUsize,
+
+    stage: AtomicI8,
 }
 
 #[derive(Debug)]
@@ -83,7 +88,7 @@ struct Modifier: u16 {
     const Enum       = 0x4000;
 }}
 
-pub(in crate::vm::runtime) static CLASSES: LazyLock<Classes> = LazyLock::new(Classes::default);
+pub(in crate::vm) static CLASSES: LazyLock<Classes> = LazyLock::new(Classes::default);
 
 /// a class with its id and name
 type ClassWithId = (usize, String, Arc<Class>);
@@ -132,6 +137,61 @@ impl Classes {
         match !name.starts_with('[') {
             true => self.insert_class(&class, None, class_ref),
             _ => todo!(),
+        }
+    }
+
+    /// pre-construction initialisation, used to load `Object` and `Class` before any
+    /// other classes are loaded
+    pub fn pre(&self) -> Result<()> {
+        let stage = self.stage.fetch_add(1, Ordering::SeqCst);
+
+        match stage == 0 {
+            true => {
+                let object = with_method_area(|area| area.load_from_file(Class::OBJECT))?;
+                self.insert_impl(Class::OBJECT, Arc::clone(&object));
+
+                trace!("CLASS LOADED -> {}", Class::OBJECT);
+
+                let class = with_method_area(|area| area.load_from_file(Class::NAME))?;
+                self.insert_impl(Class::NAME, Arc::clone(&class));
+
+                trace!("CLASS LOADED -> {}", Class::NAME);
+
+                Ok(())
+            }
+
+            _ => Err(RuntimeError::Execution(format!(
+                "pre-construction was invoked at the wrong construction stage: {stage}"
+            ))
+            .into()),
+        }
+    }
+
+    /// post-construction initialisation, used to create `Clas` and `Object` to avoid
+    /// infinity recursion during class loading
+    pub fn post(&self) -> Result<()> {
+        let stage = self.stage.fetch_add(1, Ordering::SeqCst);
+
+        match stage == 1 {
+            true => {
+                let (class_id, name, class) = self
+                    .get_impl(Class::NAME)
+                    .expect("CLASS must be loaded in pre-construction phase");
+
+                Self::create_class_instance((&class, class_id), (&class, class_id), None, None)?;
+
+                let (object_id, name, object) = self
+                    .get_impl(Class::OBJECT)
+                    .expect("OBJECT must be loaded in pre-construction phase");
+
+                Self::create_class_instance((&object, object_id), (&class, class_id), None, None)?;
+
+                Ok(())
+            }
+            _ => Err(RuntimeError::Execution(format!(
+                "post-construction was invoked at the wrong construction stage: {stage}"
+            ))
+            .into()),
         }
     }
 
