@@ -28,7 +28,7 @@ impl Executor {
         todo!()
     }
 
-    pub(in crate::vm::interpreter) fn static_method(
+    pub(in crate::vm) fn static_method(
         classname: &str,
         method_name: &str,
         args: &[Value],

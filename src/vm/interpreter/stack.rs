@@ -44,7 +44,7 @@ pub enum StackError {
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub(super) enum Value {
+pub(in crate::vm) enum Value {
     Int(i32),
     Long(i64),
     Float(f32),
