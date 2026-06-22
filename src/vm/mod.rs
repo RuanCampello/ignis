@@ -67,6 +67,7 @@ pub fn run(args: Args<'static>, java_home: impl AsRef<Path>) -> Result<()> {
 
     args.resolve_class_path()?;
     args.initialise_properties()?;
+    args.initialise_perf_file()?;
 
     todo!()
 }

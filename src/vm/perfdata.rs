@@ -1,4 +1,7 @@
-use crate::vm::{Result, VmError, runtime::RuntimeError};
+use crate::{
+    Args,
+    vm::{Result, VmError, runtime::RuntimeError},
+};
 use memmap2::MmapMut;
 use once_cell::sync::{Lazy, OnceCell};
 use parking_lot::Mutex;
@@ -81,6 +84,28 @@ const MAGIC: i32 = match IS_LITTLE_ENDIAN {
 };
 
 const BYTE_ORDER: u8 = if IS_LITTLE_ENDIAN { 1 } else { 0 };
+
+impl<'a> Args<'a> {
+    pub(in crate::vm) fn initialise_perf_file(&self) -> Result<()> {
+        let mut perf_file = PERF_FILE
+            .get_or_try_init(|| Ok::<Mutex<PerfFile>, VmError>(Mutex::new(PerfFile::default()?)))?
+            .lock();
+
+        let command = {
+            let mut cmd = self.entry.to_string();
+            for arg in &self.program_args {
+                cmd.push(' ');
+                cmd.push_str(arg);
+            }
+
+            cmd
+        };
+
+        perf_file.add_string("sun.rt.javaCommand", &command)?;
+
+        Ok(())
+    }
+}
 
 impl PerfFile {
     pub(in crate::vm) fn default() -> Result<Self> {
