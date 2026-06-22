@@ -458,6 +458,16 @@ impl<T> Stack<T> {
     }
 }
 
+impl Value {
+    #[inline(always)]
+    pub const fn chunks(&self) -> usize {
+        match self {
+            Self::Int(_) | Self::Float(_) => 1,
+            Self::Long(_) | Self::Double(_) => 2,
+        }
+    }
+}
+
 impl Default for Value {
     fn default() -> Self {
         Value::Int(0)

@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
 use crate::vm::{
     Result,
-    interpreter::{ValueRef, stack::Value},
-    runtime::method_area::with_method_area,
+    interpreter::{self, StackFrame, ValueRef, stack::Value},
+    method_area::{CLASSES, Class},
+    runtime::{self, method_area::with_method_area},
 };
 
 // for as it now, executor is not going to hold any state
@@ -23,5 +26,46 @@ impl Executor {
 
     pub fn default_constructor(classname: &str) -> Result<ValueRef> {
         todo!()
+    }
+
+    pub(in crate::vm::interpreter) fn static_method(
+        classname: &str,
+        method_name: &str,
+        args: &[Value],
+    ) -> Result<Vec<ValueRef>> {
+        let class = CLASSES.get(classname)?;
+
+        Self::execute_for_class(&class, method_name, args, None)
+    }
+
+    fn execute_for_class(
+        class: &Arc<Class>,
+        method_name: &str,
+        args: &[Value],
+        reason: Option<&str>,
+    ) -> Result<Vec<ValueRef>> {
+        let method = class.get_method(method_name)?;
+        let mut stack_frame = method.new_frame()?;
+
+        Self::set_stack(&mut stack_frame, args)?;
+
+        interpreter::execute(stack_frame)
+    }
+
+    fn set_stack(stack_frame: &mut StackFrame, args: &[Value]) -> Result<()> {
+        let mut chunk_index = 0;
+
+        for arg in args.iter() {
+            match arg {
+                Value::Int(value) => stack_frame.set(chunk_index, *value),
+                Value::Long(value) => stack_frame.set(chunk_index, *value),
+                Value::Float(value) => stack_frame.set(chunk_index, *value),
+                Value::Double(value) => stack_frame.set(chunk_index, *value),
+            }
+
+            chunk_index += arg.chunks();
+        }
+
+        Ok(())
     }
 }
