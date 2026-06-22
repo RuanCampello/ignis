@@ -4,7 +4,7 @@ use crate::vm::{
     Result,
     interpreter::{self, StackFrame, ValueRef, stack::Value},
     method_area::{CLASSES, Class},
-    runtime::{self, method_area::with_method_area},
+    runtime::{self, heap::HEAP, method_area::with_method_area},
 };
 
 // for as it now, executor is not going to hold any state
@@ -36,6 +36,24 @@ impl Executor {
         let class = CLASSES.get(classname)?;
 
         Self::execute_for_class(&class, method_name, args, None)
+    }
+
+    pub(in crate::vm) fn constructor(
+        classname: &str,
+        method_name: &str,
+        args: &[Value],
+    ) -> Result<ValueRef> {
+        let class = CLASSES.get(classname)?;
+        let instance = CLASSES.new_base_instance(classname)?;
+        let reference = HEAP.allocate_instance(instance);
+
+        let mut arguments = Vec::with_capacity(args.len() + 1);
+        arguments.push(Value::from(reference));
+        arguments.extend_from_slice(args);
+
+        Self::execute_for_class(&class, method_name, &arguments, None)?;
+
+        Ok(reference)
     }
 
     fn execute_for_class(

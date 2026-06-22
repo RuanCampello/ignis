@@ -10,7 +10,7 @@ pub(in crate::vm) use stack::StackFrame;
 pub mod executor;
 mod instructions;
 pub(in crate::vm) mod ldc;
-mod stack;
+pub(in crate::vm) mod stack;
 pub mod static_method;
 
 #[derive(Error, Debug)]
