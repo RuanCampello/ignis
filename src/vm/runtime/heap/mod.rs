@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use std::sync::{
-    LazyLock,
+    Arc, LazyLock,
     atomic::{AtomicI32, Ordering},
 };
 
@@ -96,6 +96,19 @@ impl Heap {
 
     pub(in crate::vm::runtime) fn intern_string(&self, value: &str, reference: i32) {
         self.ref_by_string.insert(value.to_string(), reference);
+    }
+
+    pub(in crate::vm::runtime) fn get_mirror_class_id(&self, class_ref: i32) -> Result<usize> {
+        self.objects
+            .get(&class_ref)
+            .and_then(|entry| match entry.value() {
+                HeapValue::Object(Instance::Base(instance)) => Some(instance.id),
+                _ => None,
+            })
+            .ok_or_else(|| {
+                Error::Execution(format!("failed to get mirror class id by ref: {class_ref}"))
+                    .into()
+            })
     }
 
     /// Allocates this given object instance into the heap.

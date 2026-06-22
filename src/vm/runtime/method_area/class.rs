@@ -164,10 +164,10 @@ impl Classes {
 
                 trace!("CLASS LOADED -> {}", Class::OBJECT);
 
-                let class = with_method_area(|area| area.load_from_file(Class::NAME))?;
-                self.insert_impl(Class::NAME, Arc::clone(&class));
+                let class = with_method_area(|area| area.load_from_file(Class::CLASS))?;
+                self.insert_impl(Class::CLASS, Arc::clone(&class));
 
-                trace!("CLASS LOADED -> {}", Class::NAME);
+                trace!("CLASS LOADED -> {}", Class::CLASS);
 
                 Ok(())
             }
@@ -187,7 +187,7 @@ impl Classes {
         match stage == 1 {
             true => {
                 let (class_id, name, class) = self
-                    .get_impl(Class::NAME)
+                    .get_impl(Class::CLASS)
                     .expect("CLASS must be loaded in pre-construction phase");
 
                 Self::create_class_instance((&class, class_id), (&class, class_id), None, None)?;
@@ -220,10 +220,10 @@ impl Classes {
 
         let class_id = self.insert_impl(name, Arc::clone(class));
 
-        let (class_class_id, _, class_class) = self.get_impl(Class::NAME).ok_or_else(|| {
+        let (class_class_id, _, class_class) = self.get_impl(Class::CLASS).ok_or_else(|| {
             RuntimeError::Execution(format!(
                 "{} class was not found in the loaded classes",
-                Class::NAME
+                Class::CLASS
             ))
         })?;
 
@@ -252,7 +252,7 @@ impl Classes {
             },
         });
         instance.set_field_value(
-            Class::NAME,
+            Class::CLASS,
             "componentType",
             vec![component_ref_type.unwrap_or(0)],
         )?;
@@ -261,13 +261,13 @@ impl Classes {
             .contains_key(class.name.as_str())
             .then_some(1)
             .unwrap_or(0);
-        instance.set_field_value(Class::NAME, "primitive", vec![primitive])?;
+        instance.set_field_value(Class::CLASS, "primitive", vec![primitive])?;
 
         let modifiers = class.modifiers.bits();
-        instance.set_field_value(Class::NAME, "modifiers", vec![modifiers as i32])?;
+        instance.set_field_value(Class::CLASS, "modifiers", vec![modifiers as i32])?;
 
         instance.set_field_value(
-            Class::NAME,
+            Class::CLASS,
             "classLoader",
             vec![class_loader_ref.unwrap_or(0)],
         )?;
@@ -349,7 +349,7 @@ impl Classes {
 }
 
 impl Class {
-    pub(in crate::vm::runtime) const NAME: &str = "java/lang/Class";
+    pub(in crate::vm::runtime) const CLASS: &str = "java/lang/Class";
     const OBJECT: &str = "java/lang/Object";
 
     pub fn with_classname(classname: &str) -> Self {
@@ -509,8 +509,6 @@ impl Method {
 }
 
 impl FieldValue {
-    /// Zero-initialised value sized after a field `descriptor`: `long` and `double`
-    /// take two slots, every other type a single one.
     fn default_for(descriptor: &str) -> Self {
         let slots = match descriptor.starts_with(['J', 'D']) {
             true => 2,
@@ -541,6 +539,12 @@ impl Clone for FieldValue {
             value: RwLock::new(value),
         }
     }
+}
+
+#[inline]
+pub(in crate::vm) fn get_class(class_ref: i32) -> Result<Arc<Class>> {
+    HEAP.get_mirror_class_id(class_ref)
+        .map(|id| CLASSES.get_by_id(id))?
 }
 
 #[inline(always)]

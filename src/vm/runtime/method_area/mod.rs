@@ -141,7 +141,7 @@ impl MethodArea {
 
                 let for_name =
                     "forName:(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;";
-                let class_ref = Executor::static_method(Class::NAME, for_name, &[])?;
+                let class_ref = Executor::static_method(Class::CLASS, for_name, &[])?;
 
                 todo!("load application class `{external}` via Class.forName")
             }
