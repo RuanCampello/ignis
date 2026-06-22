@@ -218,7 +218,7 @@ impl PerfFile {
                 "failed to read the perf_file on {:02x?}",
                 &mmap[28..32]
             ))
-        })?) + 1) as usize;
+        })?) + 1);
 
         let (bytes, offset, end) = entry.to_bytes();
 
@@ -268,7 +268,7 @@ impl Entry {
         let mut buff = Vec::with_capacity(length);
 
         buff.extend_from_slice(&(length as i32).to_ne_bytes());
-        buff.extend_from_slice(&offset.to_ne_bytes());
+        buff.extend_from_slice(&name.to_ne_bytes());
         buff.extend_from_slice(&self.length.to_ne_bytes());
         buff.push(self.typ);
         buff.push(self.flags);
