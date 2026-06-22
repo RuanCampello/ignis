@@ -42,14 +42,24 @@ enum Types {
 #[repr(u8)]
 enum Var {
     Constant = 1,
-    Monotonic = 2,
-    Variable = 3,
+    Monotonic,
+    Variable,
 }
 
 #[repr(u8)]
 enum Flags {
     None = 0x0,
     Supported = 0x1,
+}
+
+#[repr(u8)]
+enum Units {
+    None = 1,
+    Bytes,
+    Ticks,
+    Events,
+    String,
+    Hertz,
 }
 
 static PERF_FILE: OnceCell<Mutex<PerfFile>> = OnceCell::new();
@@ -108,6 +118,63 @@ impl PerfFile {
             path: file_path,
             names: HashSet::new(),
         })
+    }
+
+    #[inline]
+    fn add_string(&mut self, name: &str, value: &str) -> Result<(*const u8, usize)> {
+        self.add_array(
+            name,
+            Var::Constant as u8,
+            Units::String as u8,
+            value.as_bytes(),
+            1024,
+        )
+    }
+
+    fn add_array(
+        &mut self,
+        name: &str,
+        var: u8,
+        units: u8,
+        value: &[u8],
+        len: usize,
+    ) -> Result<(*const u8, usize)> {
+        let len = len.max(1);
+        let mut data = vec![0u8; len];
+        let copy_len = value.len().min(len.saturating_sub(1));
+        data[..copy_len].copy_from_slice(&value[..copy_len]);
+
+        let entry = Entry {
+            units,
+            var,
+            data,
+            typ: Types::Byte as u8,
+            flags: flags(name),
+            name: name.to_string(),
+            length: len as i32,
+        };
+
+        self.append(entry)
+    }
+
+    fn add_long(
+        &mut self,
+        name: &str,
+        var: u8,
+        units: u8,
+        value: i64,
+    ) -> Result<(*const u8, usize)> {
+        let entry = Entry {
+            name: name.to_string(),
+            typ: Types::Long as u8,
+            flags: flags(name),
+            units,
+            var,
+            data: value.to_ne_bytes().to_vec(),
+            length: 0,
+        };
+
+        self.append(entry)
     }
 
     fn append(&mut self, entry: Entry) -> Result<(*const u8, usize)> {
@@ -260,4 +327,12 @@ fn timestamp() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .expect("timestamp to be valid")
         .as_nanos() as i64
+}
+
+#[inline(always)]
+fn flags(name: &str) -> u8 {
+    return match name.starts_with("java.") || name.starts_with("com.sun.") {
+        true => Flags::Supported,
+        _ => Flags::None,
+    } as u8;
 }
