@@ -24,8 +24,8 @@ impl Executor {
         super::execute(frame)
     }
 
-    pub fn default_constructor(classname: &str) -> Result<ValueRef> {
-        todo!()
+    pub(in crate::vm) fn default_constructor(classname: &str) -> Result<ValueRef> {
+        Self::constructor(classname, Self::INITIALISE_METHOD, &[])
     }
 
     pub(in crate::vm) fn static_method(
@@ -34,6 +34,25 @@ impl Executor {
         args: &[Value],
     ) -> Result<Vec<ValueRef>> {
         let class = CLASSES.get(classname)?;
+
+        Self::execute_for_class(&class, method_name, args, None)
+    }
+
+    pub(in crate::vm) fn non_static_method(
+        classname: &str,
+        method_name: &str,
+        instance_ref: i32,
+        args: &[Value],
+    ) -> Result<Vec<ValueRef>> {
+        let class = CLASSES.get(classname)?;
+
+        let args = {
+            let mut new_args = Vec::with_capacity(args.len() + 1);
+            new_args.push(instance_ref.into());
+            new_args.extend_from_slice(args);
+
+            args
+        };
 
         Self::execute_for_class(&class, method_name, args, None)
     }

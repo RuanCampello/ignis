@@ -9,6 +9,7 @@
 
 #![allow(unused)]
 
+use crate::vm::method_area::class;
 use crate::vm::runtime::RuntimeError;
 use crate::vm::runtime::method_area::MethodArea;
 use crate::{Args, vm::runtime::method_area};
@@ -22,6 +23,7 @@ use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberI
 
 mod descriptor;
 mod interpreter;
+mod launcher;
 mod perfdata;
 mod properties;
 mod runtime;
@@ -82,8 +84,8 @@ fn setup() -> Result<()> {
     logger()?;
     MethodArea::initialise()?;
 
-    method_area::CLASSES.pre()?;
-    method_area::CLASSES.post()?;
+    class::CLASSES.pre()?;
+    class::CLASSES.post()?;
 
     Ok(())
 }
