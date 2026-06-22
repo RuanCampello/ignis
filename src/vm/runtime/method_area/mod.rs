@@ -4,6 +4,7 @@ use crate::{
     vm::{
         JAVA_HOME, Result, VmError,
         interpreter::{StackFrame, executor::Executor, ldc::Ldc},
+        method_area::class::{CLASSES, Class, FieldValue},
         runtime::{
             RuntimeError,
             heap::{BaseInstance, HEAP},
@@ -23,9 +24,7 @@ use std::{
     sync::Arc,
 };
 
-pub(in crate::vm) use class::{CLASSES, Class, FieldValue};
-
-mod class;
+pub(in crate::vm) mod class;
 
 static METHOD_AREA: OnceCell<MethodArea> = OnceCell::new();
 static PRIMITIVE_TYPE: Lazy<HashMap<&str, &str>> = {

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::vm::{
     Result,
     interpreter::{self, StackFrame, ValueRef, stack::Value},
-    method_area::{CLASSES, Class},
+    method_area::class::{CLASSES, Class},
     runtime::{self, heap::HEAP, method_area::with_method_area},
 };
 

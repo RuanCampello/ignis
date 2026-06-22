@@ -13,7 +13,8 @@ use crate::vm::{
 use dashmap::DashMap;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
-use parking_lot::RwLock;
+use parking_lot::{ReentrantMutex, RwLock};
+use std::cell::RefCell;
 use std::{
     ops::DerefMut,
     sync::{
@@ -34,15 +35,21 @@ pub(in crate::vm) struct Classes {
 
 #[derive(Debug)]
 pub(in crate::vm) struct Class {
-    name: String,
+    pub(in crate::vm) name: String,
     methods: IndexMap<String, Arc<Method>>,
     static_fields: IndexMap<String, Arc<FieldValue>>,
-    pub(super) parent: Option<String>,
+    pub(in crate::vm) static_fields_initial_state: Arc<ReentrantMutex<InitialState>>,
+    pub(in crate::vm) parent: Option<String>,
     pub(super) external_name: String,
     modifiers: Modifier,
 
     fields_hierarchy: OnceCell<IndexMap<String, IndexMap<String, FieldValue>>>,
     fields_schema: IndexMap<String, FieldValue>,
+}
+
+#[derive(Debug, Default)]
+pub(in crate::vm::runtime) struct InitialState {
+    state: RefCell<State>,
 }
 
 #[derive(Debug)]
@@ -89,6 +96,14 @@ struct Modifier: u16 {
     const Annotation = 0x2000;
     const Enum       = 0x4000;
 }}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub(in crate::vm) enum State {
+    #[default]
+    Unitialised,
+    Initialising,
+    Initialised,
+}
 
 pub(in crate::vm) static CLASSES: LazyLock<Classes> = LazyLock::new(Classes::default);
 
@@ -344,6 +359,7 @@ impl Classes {
             static_fields: IndexMap::new(),
             fields_schema: IndexMap::new(),
             fields_hierarchy: OnceCell::new(),
+            static_fields_initial_state: Arc::default(),
         })
     }
 }
@@ -361,6 +377,7 @@ impl Class {
             fields_hierarchy: OnceCell::new(),
             modifiers: Modifier::empty(),
             external_name: String::default(),
+            static_fields_initial_state: Arc::default(),
             parent: None,
         }
     }
@@ -446,8 +463,9 @@ impl Class {
             static_fields,
             parent,
             modifiers,
-            fields_hierarchy: OnceCell::new(),
             fields_schema,
+            fields_hierarchy: OnceCell::new(),
+            static_fields_initial_state: Arc::default(),
         })
     }
 
@@ -487,6 +505,16 @@ impl Class {
 
     pub(super) fn default_value_fields(&self) -> IndexMap<String, FieldValue> {
         self.fields_schema.clone()
+    }
+}
+
+impl InitialState {
+    pub fn get_state(&self) -> State {
+        *self.state.borrow()
+    }
+
+    pub fn set_state(&self, state: State) {
+        *self.state.borrow_mut() = state
     }
 }
 

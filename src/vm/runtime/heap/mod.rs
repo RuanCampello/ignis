@@ -1,6 +1,6 @@
 use crate::vm::{
     Result, VmError,
-    runtime::{RuntimeError as Error, heap::object::Objects, method_area::FieldValue},
+    runtime::{RuntimeError as Error, heap::object::Objects, method_area::class::FieldValue},
 };
 use dashmap::DashMap;
 use indexmap::IndexMap;
