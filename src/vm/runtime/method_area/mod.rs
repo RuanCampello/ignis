@@ -1,10 +1,10 @@
 use crate::{
-    classfile::{Classfile, ConstantPool, ConstantPoolEntry},
+    classfile::Classfile,
     image::image::Image,
     vm::{
         JAVA_HOME, Result, VmError,
         interpreter::{StackFrame, ldc::Ldc},
-        runtime::{RuntimeError, heap::BaseInstance, method_area::class::CLASSES},
+        runtime::{RuntimeError, heap::BaseInstance},
     },
 };
 use dashmap::DashMap;
@@ -16,11 +16,11 @@ use std::{
     fs::File,
     io::Read,
     ops::Index,
-    path::Path,
+    path::{Path, PathBuf},
     sync::Arc,
 };
 
-pub(in crate::vm) use class::{Class, FieldValue};
+pub(in crate::vm) use class::{CLASSES, Class, FieldValue};
 
 mod class;
 
@@ -56,39 +56,6 @@ pub(in crate::vm) struct MethodArea {
 pub(in crate::vm) struct Modules {
     registry: DashMap<String, i32>,
     class_to_patch: Mutex<Option<HashSet<i32>>>,
-}
-
-struct Pool<'c> {
-    data: HashMap<PoolType, HashMap<u16, ConstantPoolEntry<'c>>>,
-    pool: Vec<ConstantPoolEntry<'c>>,
-    classname: Option<ClassName>,
-}
-
-struct ClassName {
-    index: u16,
-    name: String,
-}
-
-#[derive(Debug, Hash, PartialEq, Eq)]
-enum PoolType {
-    Empty,
-    Utf8,
-    Integer,
-    Float,
-    Long,
-    Double,
-    Class,
-    String,
-    Fieldref,
-    Methodref,
-    InterfaceMethodref,
-    NameAndType,
-    MethodHandle,
-    MethodType,
-    Dynamic,
-    InvokeDynamic,
-    Module,
-    Package,
 }
 
 pub(crate) fn with_method_area<C, R>(callback: C) -> R
@@ -144,21 +111,60 @@ impl MethodArea {
     }
 
     fn load_from_file(&self, classname: &str) -> Result<Arc<Class>> {
-        let filepath = format!("{classname}.class");
+        let class_path = format!("{classname}.class");
 
-        // TODO: module parsing
+        if let Some(module) = self.modules_map.get(&class_path) {
+            let resource = format!("/{module}/{class_path}");
 
-        let mut file = match File::open(Path::new(&filepath)) {
-            Ok(file) => Ok(file),
-            Err(err) => Err(RuntimeError::FileLoadError {
-                filepath,
-                source: err,
-            }),
-        }?;
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer);
+            if let Some(resource) = self
+                .image
+                .find_resource(&resource)
+                .map_err(|image| RuntimeError::Execution(image.to_string()))?
+            {
+                match self.parse(&resource) {
+                    Ok(Some(class)) => return Ok(class),
+                    Ok(None) => {}
+                    Err(e) => return Err(e),
+                }
+            }
+        }
 
-        unimplemented!()
+        match class_path.starts_with("java/") {
+            true => unimplemented!(),
+            _ => todo!(),
+        }
+    }
+
+    fn parse(&self, buff: &[u8]) -> Result<Option<Arc<Class>>> {
+        let arena = bumpalo::Bump::new();
+        let classfile = Classfile::new(buff, &arena).map_err(|e| VmError::Other(e.to_string()))?;
+
+        let name = classfile.class_name().ok_or_else(|| {
+            RuntimeError::Execution("class file is missing its class name".into())
+        })?;
+        let (internal, _external) = internal_and_external_names(name);
+
+        let class = Class::from_classfile(&classfile, &internal)?;
+
+        Ok(Some(Arc::new(class)))
+    }
+
+    fn open_and_parse(&self, path: impl Into<PathBuf>) -> Result<Option<Arc<Class>>> {
+        let mut file = File::open(path.into())
+            .map(Some)
+            .or_else(|e| match e.kind() {
+                std::io::ErrorKind::NotFound => Ok::<_, VmError>(None),
+                _ => Err(e.into()),
+            })?;
+
+        let Some(mut file) = file else {
+            return Ok(None);
+        };
+
+        let mut buff = Vec::new();
+        file.read_to_end(&mut buff)?;
+
+        self.parse(&buff)
     }
 }
 
@@ -167,24 +173,6 @@ impl Modules {
         Self {
             registry: DashMap::new(),
             class_to_patch: Mutex::new(Some(HashSet::new())),
-        }
-    }
-}
-
-impl<'c> Pool<'c> {
-    fn new(pool: &[ConstantPoolEntry<'c>], classname: Option<ClassName>) -> Self {
-        let mut data: HashMap<PoolType, HashMap<u16, ConstantPoolEntry<'c>>> = HashMap::new();
-
-        for (idx, item) in pool.iter().enumerate() {
-            let typ = item.into();
-            let entry = data.entry(typ).or_insert_with(HashMap::new);
-            entry.insert(idx as u16, item.clone());
-        }
-
-        Self {
-            data,
-            pool: pool.to_vec(),
-            classname,
         }
     }
 }
@@ -220,30 +208,6 @@ fn internal_and_external_names(string: &str) -> (String, String) {
             let internal = string.to_string();
             let external = string.replace('/', ".");
             (internal, external)
-        }
-    }
-}
-
-impl<'c> From<&ConstantPoolEntry<'c>> for PoolType {
-    fn from(value: &ConstantPoolEntry<'c>) -> Self {
-        match value {
-            ConstantPoolEntry::Utf8(_) => Self::Utf8,
-            ConstantPoolEntry::Integer(_) => Self::Integer,
-            ConstantPoolEntry::Float(_) => Self::Float,
-            ConstantPoolEntry::Long(_) => Self::Long,
-            ConstantPoolEntry::Double(_) => Self::Double,
-            ConstantPoolEntry::Class(_) => Self::Class,
-            ConstantPoolEntry::StringRef(_) => Self::String,
-            ConstantPoolEntry::FieldRef(_, _) => Self::Fieldref,
-            ConstantPoolEntry::MethodRef(_, _) => Self::Methodref,
-            ConstantPoolEntry::InterfaceMethodRef(_, _) => Self::InterfaceMethodref,
-            ConstantPoolEntry::NameAndType(_, _) => Self::NameAndType,
-            ConstantPoolEntry::MethodHandle(_, _) => Self::MethodHandle,
-            ConstantPoolEntry::MethodType(_) => Self::MethodType,
-            ConstantPoolEntry::Dynamic(_, _) => Self::Dynamic,
-            ConstantPoolEntry::InvokeDynamic(_, _) => Self::InvokeDynamic,
-            ConstantPoolEntry::Module(_) => Self::Module,
-            ConstantPoolEntry::Package(_) => Self::Package,
         }
     }
 }

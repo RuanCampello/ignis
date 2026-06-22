@@ -1,5 +1,6 @@
 #![warn(unused_imports)]
 
+use crate::classfile::{Classfile, FieldFlags, MethodFlags};
 use crate::vm::{
     Result, VmError,
     interpreter::StackFrame,
@@ -351,6 +352,79 @@ impl Class {
         }
     }
 
+    /// Builds a runtime [`Class`] out of a freshly parsed [`Classfile`].
+    ///
+    /// `name` is the already-resolved internal name of the class, see
+    /// [`internal_and_external_names`](super::internal_and_external_names).
+    pub(super) fn from_classfile(classfile: &Classfile, name: &str) -> Result<Self> {
+        let pool = classfile.constant_pool;
+
+        let parent = classfile.super_class().map(ToString::to_string);
+        let modifiers = Modifier::from_bits_truncate(classfile.access_flags());
+        let classname: Arc<str> = Arc::from(name);
+
+        let mut methods = IndexMap::with_capacity(classfile.methods.len());
+        for method in classfile.methods {
+            let name = method.name(pool).map_err(|e| RuntimeError::Execution(e.to_string()))?;
+            let descriptor = method.descriptor(pool).map_err(|e| RuntimeError::Execution(e.to_string()))?;
+            let flags = method.flags();
+
+            let signature: Arc<str> = Arc::from(format!("{name}:{descriptor}").as_str());
+            let native = flags.contains(MethodFlags::NATIVE);
+
+            // abstract and native methods carry no bytecode of their own.
+            let context = match flags.intersects(MethodFlags::ABSTRACT | MethodFlags::NATIVE) {
+                true => None,
+                false => method.code().map(|(max_stack, max_locals, code)| Context {
+                    max_stack,
+                    max_locals,
+                    bytecode: Arc::from(code),
+                }),
+            };
+            let annotations = method.annotations().map(<[u8]>::to_vec);
+
+            methods.insert(
+                signature.to_string(),
+                Arc::new(Method {
+                    classname: Arc::clone(&classname),
+                    signature,
+                    context,
+                    native,
+                    annotations,
+                }),
+            );
+        }
+
+        let mut static_fields = IndexMap::new();
+        let mut fields_schema = IndexMap::new();
+        for field in classfile.fields {
+            let name = field.name(pool).map_err(|e| RuntimeError::Execution(e.to_string()))?;
+            let descriptor = field.descriptor(pool).map_err(|e| RuntimeError::Execution(e.to_string()))?;
+
+            // TODO: honour `ConstantValue` for static finals instead of defaulting.
+            let value = FieldValue::default_for(descriptor);
+
+            match field.flags().contains(FieldFlags::STATIC) {
+                true => {
+                    static_fields.insert(name.to_string(), Arc::new(value));
+                }
+                false => {
+                    fields_schema.insert(name.to_string(), value);
+                }
+            }
+        }
+
+        Ok(Self {
+            name: name.to_string(),
+            methods,
+            static_fields,
+            parent,
+            modifiers,
+            fields_hierarchy: OnceCell::new(),
+            fields_schema,
+        })
+    }
+
     pub fn get_method(&self, signature: &str) -> Result<Arc<Method>> {
         self.get_full_method(signature)
             .and_then(|(_, method)| Some(method))
@@ -409,6 +483,19 @@ impl Method {
 }
 
 impl FieldValue {
+    /// Zero-initialised value sized after a field `descriptor`: `long` and `double`
+    /// take two slots, every other type a single one.
+    fn default_for(descriptor: &str) -> Self {
+        let slots = match descriptor.starts_with(['J', 'D']) {
+            true => 2,
+            false => 1,
+        };
+
+        Self {
+            value: RwLock::new(vec![0; slots]),
+        }
+    }
+
     pub(in crate::vm) fn value(&self) -> Result<Vec<i32>> {
         let guard = self.value.read();
         Ok(guard.clone())
