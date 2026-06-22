@@ -190,16 +190,10 @@ impl<'c> Classfile<'c> {
 
     #[allow(mismatched_lifetime_syntaxes)]
     pub fn field_names(&'c self, arena: &'c Bump) -> Result<Vec<&'c str>, ConstantPoolError> {
-        use self::constant_pool::ConstantPoolEntry;
-
         let mut names = Vec::new_in(arena);
 
         for f in self.fields.iter() {
-            let name = self.constant_pool.get_with(f.name_index, |e| match e {
-                ConstantPoolEntry::Utf8(s) => Ok(*s),
-                _ => Err(ConstantPoolError::InvalidIndex(f.name_index)),
-            })?;
-            names.push(name);
+            names.push(self.constant_pool.get_utf8(f.name_index)?);
         }
 
         Ok(names)
@@ -209,22 +203,11 @@ impl<'c> Classfile<'c> {
         &'c self,
         arena: &'c Bump,
     ) -> Result<Vec<'c, (&'c str, &'c str)>, ClassfileError> {
-        use self::constant_pool::ConstantPoolEntry;
-
         let mut methods = Vec::new_in(arena);
 
         for m in self.methods.iter() {
-            let name = self.constant_pool.get_with(m.name_index, |e| match e {
-                ConstantPoolEntry::Utf8(s) => Ok(*s),
-                _ => Err(ConstantPoolError::InvalidIndex(m.name_index)),
-            })?;
-
-            let descriptor = self
-                .constant_pool
-                .get_with(m.descriptor_index, |e| match e {
-                    ConstantPoolEntry::Utf8(s) => Ok(*s),
-                    _ => Err(ConstantPoolError::InvalidIndex(m.descriptor_index)),
-                })?;
+            let name = self.constant_pool.get_utf8(m.name_index)?;
+            let descriptor = self.constant_pool.get_utf8(m.descriptor_index)?;
 
             methods.push((name, descriptor));
         }
