@@ -69,12 +69,18 @@ pub fn run(args: Args<'static>, java_home: impl AsRef<Path>) -> Result<()> {
     args.initialise_properties()?;
     args.initialise_perf_file()?;
 
+    let result = (|| -> Result<()> {
+        setup()?;
+
+        Ok(())
+    })();
+
     todo!()
 }
 
-fn setup(path: &Path) -> Result<()> {
+fn setup() -> Result<()> {
     logger()?;
-    MethodArea::initialise(path)?;
+    MethodArea::initialise()?;
 
     method_area::CLASSES.pre()?;
     method_area::CLASSES.post()?;

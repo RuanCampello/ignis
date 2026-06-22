@@ -38,6 +38,7 @@ pub(in crate::vm) struct Class {
     methods: IndexMap<String, Arc<Method>>,
     static_fields: IndexMap<String, Arc<FieldValue>>,
     pub(super) parent: Option<String>,
+    pub(super) external_name: String,
     modifiers: Modifier,
 
     fields_hierarchy: OnceCell<IndexMap<String, IndexMap<String, FieldValue>>>,
@@ -127,6 +128,16 @@ impl Classes {
             .ok_or_else(|| {
                 RuntimeError::Execution(format!("class with id {id} was not found")).into()
             })
+    }
+
+    #[inline]
+    pub(in crate::vm) fn new_instance(&self, name: &str) -> Result<Instance> {
+        let (id, _, class) = self.get_with_id(name)?;
+
+        Ok(Instance::Base(BaseInstance {
+            id,
+            fields: class.get_instance_fields()?.clone(),
+        }))
     }
 
     pub fn insert(&self, class: Arc<Class>, class_ref: Option<i32>) -> Result<ClassWithId> {
@@ -321,11 +332,12 @@ impl Classes {
         entry.value().id
     }
 
-    fn generate_synthetic_array(array_name: &str) -> Arc<Class> {
-        let array_name = array_name.replace('/', ".");
+    fn generate_synthetic_array(internal: &str) -> Arc<Class> {
+        let external = internal.replace('/', ".");
 
         Arc::new(Class {
-            name: array_name,
+            name: internal.to_string(),
+            external_name: external,
             parent: Some(Class::OBJECT.into()),
             modifiers: Modifier::Public | Modifier::Final | Modifier::Abstract,
             methods: IndexMap::new(),
@@ -337,7 +349,7 @@ impl Classes {
 }
 
 impl Class {
-    const NAME: &str = "java/lang/Class";
+    pub(in crate::vm::runtime) const NAME: &str = "java/lang/Class";
     const OBJECT: &str = "java/lang/Object";
 
     pub fn with_classname(classname: &str) -> Self {
@@ -348,15 +360,20 @@ impl Class {
             fields_schema: IndexMap::new(),
             fields_hierarchy: OnceCell::new(),
             modifiers: Modifier::empty(),
+            external_name: String::default(),
             parent: None,
         }
     }
 
-    /// Builds a runtime [`Class`] out of a freshly parsed [`Classfile`].
+    /// Builds a runtime [Class] out of a freshly parsed [Classfile].
     ///
     /// `name` is the already-resolved internal name of the class, see
-    /// [`internal_and_external_names`](super::internal_and_external_names).
-    pub(super) fn from_classfile(classfile: &Classfile, name: &str) -> Result<Self> {
+    /// [internal_and_external_names](super::internal_and_external_names).
+    pub(super) fn from_classfile(
+        classfile: &Classfile,
+        name: &str,
+        external: String,
+    ) -> Result<Self> {
         let pool = classfile.constant_pool;
 
         let parent = classfile.super_class().map(ToString::to_string);
@@ -365,8 +382,12 @@ impl Class {
 
         let mut methods = IndexMap::with_capacity(classfile.methods.len());
         for method in classfile.methods {
-            let name = method.name(pool).map_err(|e| RuntimeError::Execution(e.to_string()))?;
-            let descriptor = method.descriptor(pool).map_err(|e| RuntimeError::Execution(e.to_string()))?;
+            let name = method
+                .name(pool)
+                .map_err(|e| RuntimeError::Execution(e.to_string()))?;
+            let descriptor = method
+                .descriptor(pool)
+                .map_err(|e| RuntimeError::Execution(e.to_string()))?;
             let flags = method.flags();
 
             let signature: Arc<str> = Arc::from(format!("{name}:{descriptor}").as_str());
@@ -398,8 +419,12 @@ impl Class {
         let mut static_fields = IndexMap::new();
         let mut fields_schema = IndexMap::new();
         for field in classfile.fields {
-            let name = field.name(pool).map_err(|e| RuntimeError::Execution(e.to_string()))?;
-            let descriptor = field.descriptor(pool).map_err(|e| RuntimeError::Execution(e.to_string()))?;
+            let name = field
+                .name(pool)
+                .map_err(|e| RuntimeError::Execution(e.to_string()))?;
+            let descriptor = field
+                .descriptor(pool)
+                .map_err(|e| RuntimeError::Execution(e.to_string()))?;
 
             // TODO: honour `ConstantValue` for static finals instead of defaulting.
             let value = FieldValue::default_for(descriptor);
@@ -416,6 +441,7 @@ impl Class {
 
         Ok(Self {
             name: name.to_string(),
+            external_name: external,
             methods,
             static_fields,
             parent,

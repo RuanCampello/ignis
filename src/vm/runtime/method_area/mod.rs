@@ -3,8 +3,11 @@ use crate::{
     image::image::Image,
     vm::{
         JAVA_HOME, Result, VmError,
-        interpreter::{StackFrame, ldc::Ldc},
-        runtime::{RuntimeError, heap::BaseInstance},
+        interpreter::{StackFrame, executor::Executor, ldc::Ldc},
+        runtime::{
+            RuntimeError,
+            heap::{BaseInstance, HEAP},
+        },
     },
 };
 use dashmap::DashMap;
@@ -72,7 +75,7 @@ impl MethodArea {
     const ABSTRACT: u16 = 0x0400;
     const FINAL: u16 = 0x0010;
 
-    pub fn initialise(path: impl AsRef<Path>) -> Result<()> {
+    pub fn initialise() -> Result<()> {
         METHOD_AREA
             .set(MethodArea::new()?)
             .map_err(|_| RuntimeError::MethodAreaInitialised.into())
@@ -130,9 +133,25 @@ impl MethodArea {
         }
 
         match class_path.starts_with("java/") {
-            true => unimplemented!(),
-            _ => todo!(),
+            true => self.open_and_parse(&class_path)?.ok_or_else(|| {
+                RuntimeError::Execution(format!("error opening class file: {class_path}")).into()
+            }),
+            _ => {
+                let external = classname.replace('/', ".");
+
+                let for_name =
+                    "forName:(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;";
+                let class_ref = Executor::static_method(Class::NAME, for_name, &[])?;
+
+                todo!("load application class `{external}` via Class.forName")
+            }
         }
+    }
+
+    fn generate_synthetic_class(classname: &str) -> Arc<Class> {
+        let (internal, external) = internal_and_external_names(classname);
+
+        Arc::new(todo!())
     }
 
     fn parse(&self, buff: &[u8]) -> Result<Option<Arc<Class>>> {
@@ -142,9 +161,9 @@ impl MethodArea {
         let name = classfile.class_name().ok_or_else(|| {
             RuntimeError::Execution("class file is missing its class name".into())
         })?;
-        let (internal, _external) = internal_and_external_names(name);
+        let (internal, external) = internal_and_external_names(name);
 
-        let class = Class::from_classfile(&classfile, &internal)?;
+        let class = Class::from_classfile(&classfile, &internal, external)?;
 
         Ok(Some(Arc::new(class)))
     }

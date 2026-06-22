@@ -44,7 +44,7 @@ impl Executor {
         args: &[Value],
     ) -> Result<ValueRef> {
         let class = CLASSES.get(classname)?;
-        let instance = CLASSES.new_base_instance(classname)?;
+        let instance = CLASSES.new_instance(classname)?;
         let reference = HEAP.allocate_instance(instance);
 
         let mut arguments = Vec::with_capacity(args.len() + 1);

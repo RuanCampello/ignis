@@ -5,6 +5,7 @@
 use thiserror::Error;
 pub(in crate::vm) mod heap;
 pub(in crate::vm) mod method_area;
+pub(in crate::vm) mod string_pool;
 
 #[derive(Error, Debug)]
 pub enum RuntimeError {
