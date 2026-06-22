@@ -21,7 +21,7 @@ struct Entry {
     units: u8,
     var: u8,
     data: Vec<u8>,
-    legth: i32,
+    length: i32,
 }
 
 #[repr(u8)]
@@ -158,8 +158,41 @@ impl PerfFile {
 }
 
 impl Entry {
+    const HEADER_SIZE: usize = 20;
+
     fn to_bytes(&self) -> (Vec<u8>, usize, usize) {
-        todo!()
+        fn align(value: usize, align: usize) -> usize {
+            (value + align - 1) & !(align - 1)
+        }
+
+        let name = Self::HEADER_SIZE as i32;
+        let name_len = self.name.len() + 1;
+        let name_end = Self::HEADER_SIZE + name_len;
+
+        let offset = align(name_end, 8);
+        let end = offset + self.data.len();
+        let length = align(end, 8);
+
+        let mut buff = Vec::with_capacity(length);
+
+        buff.extend_from_slice(&(length as i32).to_ne_bytes());
+        buff.extend_from_slice(&offset.to_ne_bytes());
+        buff.extend_from_slice(&self.length.to_ne_bytes());
+        buff.push(self.typ);
+        buff.push(self.flags);
+        buff.push(self.units);
+        buff.push(self.var);
+        buff.extend_from_slice(&(offset as i32).to_ne_bytes());
+
+        debug_assert_eq!(buff.len(), Self::HEADER_SIZE);
+
+        buff.extend_from_slice(self.name.as_bytes());
+        buff.push(0u8);
+        buff.resize(offset, 0u8);
+        buff.extend_from_slice(&self.data);
+        buff.resize(length, 0u8);
+
+        (buff, offset, length)
     }
 }
 
@@ -172,7 +205,6 @@ impl Drop for PerfFile {
 
 fn prologue() -> Result<Vec<u8>> {
     const PROLOGUE_SIZE: usize = 32;
-    const HEADER_SIZE: usize = 20;
 
     let entries = 0i32;
     let actual_bytes = PROLOGUE_SIZE as i32;
