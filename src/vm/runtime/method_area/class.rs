@@ -48,7 +48,7 @@ pub(in crate::vm) struct Class {
 }
 
 #[derive(Debug, Default)]
-pub(in crate::vm::runtime) struct InitialState {
+pub(in crate::vm) struct InitialState {
     state: RefCell<State>,
 }
 

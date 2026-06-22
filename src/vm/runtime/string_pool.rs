@@ -23,6 +23,19 @@ pub(in crate::vm) fn get(value: &str) -> Result<i32> {
     Ok(reference)
 }
 
+/// allocates a `java/lang/String[]` on the heap, interning each entry and return is ref
+pub(in crate::vm) fn create_string_array(properties: &[String]) -> Result<i32> {
+    let class = format!("[L{STRING};");
+    let array_ref = HEAP.allocate_array(&class, properties.len() as i32);
+
+    for (index, property) in properties.iter().enumerate() {
+        let string_ref = get(property)?;
+        HEAP.set_array_value(array_ref, index as i32, vec![string_ref])?;
+    }
+
+    Ok(array_ref)
+}
+
 fn create(value: &str) -> Result<i32> {
     if value.is_empty() {
         return create_empty();

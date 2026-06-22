@@ -23,4 +23,8 @@ impl<V> Objects<V> {
     pub fn get(&self, key: &i32) -> Option<Ref<'_, i32, V>> {
         self.map.get(key)
     }
+
+    pub fn get_mut(&self, key: &i32) -> Option<RefMut<'_, i32, V>> {
+        self.map.get_mut(key)
+    }
 }

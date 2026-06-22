@@ -153,6 +153,18 @@ impl Heap {
             _ => Err(Error::InvalidArrayEntrySize(index as usize).into()),
         }
     }
+
+    pub fn set_array_value(&self, array_ref: i32, index: i32, value: Vec<i32>) -> Result<()> {
+        let mut entry = self
+            .objects
+            .get_mut(&array_ref)
+            .ok_or_else(|| Error::InvalidArrayAccess(index as usize))?;
+
+        match entry.value_mut() {
+            HeapValue::Array(array) => array.set(index, value),
+            _ => Err(Error::InvalidArrayAccess(index as usize).into()),
+        }
+    }
 }
 
 impl Default for Heap {
@@ -272,5 +284,35 @@ impl Array {
             }
             _ => Err(Error::InvalidArrayEntrySize(size).into()),
         }
+    }
+
+    /// writes `value` into the slot at `index`, encoding it the inverse way [Array::get]
+    /// reads it back
+    fn set(&mut self, index: i32, value: Vec<i32>) -> Result<()> {
+        let size = Self::size(&self.name);
+        let offset = index as usize * size;
+        let slot = &mut self.value[offset..offset + size];
+
+        match size {
+            1..=4 => {
+                let bytes = value[0].to_ne_bytes();
+                match cfg!(target_endian = "big") {
+                    true => slot.copy_from_slice(&bytes[4 - size..4]),
+                    false => slot.copy_from_slice(&bytes[0..size]),
+                }
+            }
+            8 => {
+                let (hi, lo) = match cfg!(target_endian = "big") {
+                    true => (value[0], value[1]),
+                    false => (value[1], value[0]),
+                };
+
+                slot[0..4].copy_from_slice(&hi.to_ne_bytes());
+                slot[4..8].copy_from_slice(&lo.to_ne_bytes());
+            }
+            _ => return Err(Error::InvalidArrayEntrySize(size).into()),
+        }
+
+        Ok(())
     }
 }
