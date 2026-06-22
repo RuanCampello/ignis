@@ -25,6 +25,7 @@ use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberI
 
 mod descriptor;
 mod interpreter;
+mod perfdata;
 mod properties;
 mod runtime;
 
@@ -38,6 +39,8 @@ pub enum VmError {
     Image(#[from] crate::image::Error),
     #[error("I/O operation failed due to: {0}")]
     IO(#[from] std::io::Error),
+    #[error("{0}")]
+    Other(String),
 }
 
 static JAVA_HOME: OnceLock<PathBuf> = OnceLock::new();
