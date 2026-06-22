@@ -1,4 +1,4 @@
-use crate::vm::{Result, VmError};
+use crate::vm::{Result, VmError, runtime::RuntimeError};
 use memmap2::MmapMut;
 use once_cell::sync::{Lazy, OnceCell};
 use parking_lot::Mutex;
@@ -109,6 +109,58 @@ impl PerfFile {
             names: HashSet::new(),
         })
     }
+
+    fn append(&mut self, entry: Entry) -> Result<(*const u8, usize)> {
+        let Some(mmap) = self.mmap.as_mut() else {
+            return Err(RuntimeError::Execution("perf_file mmap is not available".into()).into());
+        };
+
+        let used = i32::from_ne_bytes(mmap[8..12].try_into().map_err(|e| {
+            VmError::Other(format!(
+                "failed to read the perf_file on {:02x?}",
+                &mmap[8..12]
+            ))
+        })?) as usize;
+        let num_entries = (i32::from_ne_bytes(mmap[28..32].try_into().map_err(|e| {
+            VmError::Other(format!(
+                "failed to read the perf_file on {:02x?}",
+                &mmap[28..32]
+            ))
+        })?) + 1) as usize;
+
+        let (bytes, offset, end) = entry.to_bytes();
+
+        let new_used = used + bytes.len();
+        let offset = offset + used;
+        let end = end + used;
+
+        if new_used > *PAGE_CAPACITY {
+            mmap[12..16].copy_from_slice(&(new_used as i32 - *PAGE_CAPACITY as i32).to_ne_bytes());
+            return Err(VmError::Other(
+                "Not enough space in perf data file for new entry to be appended".into(),
+            ));
+        }
+
+        mmap[used..new_used].copy_from_slice(&bytes);
+        mmap[8..12].copy_from_slice(&(new_used as i32).to_ne_bytes());
+        mmap[16..24].copy_from_slice(&timestamp().to_ne_bytes());
+        mmap[28..32].copy_from_slice(&(num_entries).to_ne_bytes());
+        mmap.flush()?;
+
+        self.names.insert(entry.name);
+        Ok((mmap[offset..end].as_ptr(), end - offset))
+    }
+
+    #[inline(always)]
+    fn contains(&self, name: &str) -> bool {
+        self.names.contains(name)
+    }
+}
+
+impl Entry {
+    fn to_bytes(&self) -> (Vec<u8>, usize, usize) {
+        todo!()
+    }
 }
 
 impl Drop for PerfFile {
@@ -126,10 +178,7 @@ fn prologue() -> Result<Vec<u8>> {
     let actual_bytes = PROLOGUE_SIZE as i32;
     let offset = PROLOGUE_SIZE as i32;
 
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("timestamp to be valid")
-        .as_nanos() as i64;
+    let timestamp = timestamp();
     let accessible = 1;
     let overflow = 0i32;
 
@@ -172,4 +221,11 @@ fn get_dir() -> Result<PathBuf> {
     let path = temp_dir.join(format!("hsperfdata_{username}"));
 
     Ok(path)
+}
+
+fn timestamp() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("timestamp to be valid")
+        .as_nanos() as i64
 }
