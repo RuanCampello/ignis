@@ -18,12 +18,11 @@ pub(crate) use constant_pool::{ConstantPool, ConstantPoolEntry};
 pub use fields::FieldFlags;
 pub use methods::MethodFlags;
 
+use self::attributes::get_attributes;
 use crate::classfile::{
     fields::parse_fields,
     methods::{Method, parse_methods},
 };
-
-use self::attributes::get_attributes;
 use bitflags::bitflags;
 use bumpalo::{Bump, collections::Vec};
 use constant_pool::ConstantPoolError;
@@ -35,7 +34,7 @@ use thiserror::Error;
 #[derive(Debug, PartialEq, Clone)]
 pub struct Classfile<'cf> {
     version: Version,
-    constant_pool: &'cf ConstantPool<'cf>,
+    pub(crate) constant_pool: &'cf ConstantPool<'cf>,
     access_flags: AccessFlags,
     this_class: u16,
     super_class: u16,
@@ -157,6 +156,10 @@ impl<'c> Classfile<'c> {
             fields,
             methods,
         })
+    }
+
+    pub(crate) fn access_flags(&self) -> u16 {
+        self.access_flags.bits()
     }
 
     pub fn is_public(&self) -> bool {

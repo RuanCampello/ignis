@@ -1,4 +1,7 @@
-use crate::classfile::{ClassfileError, ConstantPool, attributes::Attribute, get_attributes, read};
+use crate::classfile::{
+    ClassfileError, ConstantPool, attributes::Attribute, constant_pool::ConstantPoolError,
+    get_attributes, read,
+};
 use bitflags::bitflags;
 use bumpalo::{Bump, collections::Vec};
 use std::io::{BufReader, Read};
@@ -46,6 +49,46 @@ bitflags! {
 impl<'c> Method<'c> {
     pub fn contains(&self, flags: &[MethodFlags]) -> bool {
         flags.iter().all(|flag| self.access_flags.contains(*flag))
+    }
+
+    pub(crate) fn flags(&self) -> MethodFlags {
+        self.access_flags
+    }
+
+    pub(crate) fn name(&self, pool: &'c ConstantPool<'c>) -> Result<&'c str, ConstantPoolError> {
+        pool.get_utf8(self.name_index)
+    }
+
+    pub(crate) fn descriptor(
+        &self,
+        pool: &'c ConstantPool<'c>,
+    ) -> Result<&'c str, ConstantPoolError> {
+        pool.get_utf8(self.descriptor_index)
+    }
+
+    /// `(max_stack, max_locals, bytecode)` of the method's `Code` attribute, if any
+    pub(crate) fn code(&self) -> Option<(u16, u16, &'c [u8])> {
+        self.attributes
+            .iter()
+            .find_map(|attribute| match attribute {
+                Attribute::Code {
+                    max_stack,
+                    max_locals,
+                    code,
+                    ..
+                } => Some((*max_stack, *max_locals, *code)),
+                _ => None,
+            })
+    }
+
+    /// raw bytes of the method's `RuntimeVisibleAnnotations` attribute, if any
+    pub(crate) fn annotations(&self) -> Option<&'c [u8]> {
+        self.attributes
+            .iter()
+            .find_map(|attribute| match attribute {
+                Attribute::RuntimeVisibleAnnotations { bytes, .. } => Some(*bytes),
+                _ => None,
+            })
     }
 }
 

@@ -145,6 +145,14 @@ impl<'c> ConstantPool<'c> {
         self.get_with(index, |entry| Ok(entry))
     }
 
+    /// Resolves a [Utf8](ConstantPoolEntry::Utf8) entry into its underlying string
+    pub fn get_utf8(&self, index: u16) -> Result<&str, ConstantPoolError> {
+        self.get_with(index, |entry| match entry {
+            ConstantPoolEntry::Utf8(string) => Ok(*string),
+            _ => Err(ConstantPoolError::InvalidIndex(index)),
+        })
+    }
+
     pub fn get_classname(&self, index: u16) -> Result<&str, ConstantPoolError> {
         self.get_with(index, |entry| match entry {
             ConstantPoolEntry::Class(name_index) => {

@@ -2,7 +2,9 @@
 //! A `field_info` structure is used to represent a field (instance variable or class variable) in a Java class.
 
 use super::attributes::Attribute;
-use crate::classfile::{ClassfileError, ConstantPool, get_attributes, read};
+use crate::classfile::{
+    ClassfileError, ConstantPool, constant_pool::ConstantPoolError, get_attributes, read,
+};
 use bitflags::bitflags;
 use bumpalo::{Bump, collections::Vec};
 use std::io::{BufReader, Read};
@@ -44,6 +46,21 @@ bitflags! {
 impl<'f> Field<'f> {
     pub fn contains(&self, flags: &[FieldFlags]) -> bool {
         flags.iter().all(|flag| self.access_flags.contains(*flag))
+    }
+
+    pub(crate) fn flags(&self) -> FieldFlags {
+        self.access_flags
+    }
+
+    pub(crate) fn name(&self, pool: &'f ConstantPool<'f>) -> Result<&'f str, ConstantPoolError> {
+        pool.get_utf8(self.name_index)
+    }
+
+    pub(crate) fn descriptor(
+        &self,
+        pool: &'f ConstantPool<'f>,
+    ) -> Result<&'f str, ConstantPoolError> {
+        pool.get_utf8(self.descriptor_index)
     }
 }
 
