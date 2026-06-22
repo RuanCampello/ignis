@@ -1,12 +1,11 @@
 use crate::vm::{Result, VmError};
-use memmap2::Mmap;
+use memmap2::MmapMut;
 use once_cell::sync::{Lazy, OnceCell};
 use parking_lot::Mutex;
 use std::{collections::HashSet, fs::OpenOptions, path::PathBuf};
-use whoami::username;
 
 struct PerfFile {
-    mmap: Option<Mmap>,
+    mmap: Option<MmapMut>,
     path: PathBuf,
     names: HashSet<String>,
 }
@@ -98,9 +97,17 @@ impl PerfFile {
 
         // SAFETY: the file to map was created here
         // so there's no other procress mapping it yet
-        let mut mmap = unsafe { Mmap::map(&file)? };
+        let mut mmap = unsafe { MmapMut::map_mut(&file)? };
 
-        todo!()
+        let prologue = prologue()?;
+        mmap[..prologue.len()].copy_from_slice(&prologue);
+        mmap.flush()?;
+
+        Ok(Self {
+            mmap: Some(mmap),
+            path: file_path,
+            names: HashSet::new(),
+        })
     }
 }
 
@@ -109,6 +116,37 @@ impl Drop for PerfFile {
         drop(self.mmap.take());
         let _ = std::fs::remove_file(&self.path);
     }
+}
+
+fn prologue() -> Result<Vec<u8>> {
+    const PROLOGUE_SIZE: usize = 32;
+    const HEADER_SIZE: usize = 20;
+
+    let entries = 0i32;
+    let actual_bytes = PROLOGUE_SIZE as i32;
+    let offset = PROLOGUE_SIZE as i32;
+
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("timestamp to be valid")
+        .as_nanos() as i64;
+    let accessible = 1;
+    let overflow = 0i32;
+
+    let mut buff = Vec::with_capacity(PROLOGUE_SIZE);
+    buff.extend_from_slice(&MAGIC.to_ne_bytes());
+    buff.push(BYTE_ORDER);
+    buff.push(2);
+    buff.push(0);
+    buff.push(accessible);
+    buff.extend_from_slice(&actual_bytes.to_ne_bytes());
+    buff.extend_from_slice(&overflow.to_ne_bytes());
+    buff.extend_from_slice(&timestamp.to_ne_bytes());
+    buff.extend_from_slice(&offset.to_ne_bytes());
+    buff.extend_from_slice(&entries.to_ne_bytes());
+
+    debug_assert_eq!(buff.len(), PROLOGUE_SIZE);
+    Ok(buff)
 }
 
 fn get_dir() -> Result<PathBuf> {

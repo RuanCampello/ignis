@@ -11,10 +11,7 @@
 
 use crate::Args;
 use crate::vm::runtime::RuntimeError;
-use crate::vm::{
-    interpreter::{executor::Executor, static_method::Static},
-    runtime::method_area::{MethodArea, with_method_area},
-};
+use crate::vm::runtime::method_area::MethodArea;
 use once_cell::sync::OnceCell;
 use std::{
     path::{Path, PathBuf},
