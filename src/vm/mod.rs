@@ -10,7 +10,7 @@
 #![allow(unused)]
 
 use crate::vm::interpreter::executor::Executor;
-use crate::vm::method_area::class;
+use crate::vm::method_area::{class, with_method_area};
 use crate::vm::runtime::RuntimeError;
 use crate::vm::runtime::method_area::MethodArea;
 use crate::{Args, vm::runtime::method_area};
@@ -41,6 +41,9 @@ pub enum VmError {
     IO(#[from] std::io::Error),
     #[error("{0}")]
     Other(String),
+    /// a java exception that propagated all the way up without being caught
+    #[error("uncaught exception (throwable ref: {0})")]
+    UncaughtException(i32),
 }
 
 static JAVA_HOME: OnceLock<PathBuf> = OnceLock::new();
@@ -54,6 +57,9 @@ const UNSAFE_CONSTANTS: &str = "jdk/internal/misc/UnsafeConstants";
 const THREAD_GROUP: &str = "java/lang/ThreadGroup";
 const ACCESSIBLE_OBJ: &str = "java/lang/reflect/AccessibleObject";
 const ADDRESS_SIZE: &str = "ADDRESS_SIZE0";
+
+const SHUTDOWN: &str = "java/lang/Shutdown";
+const SHUTDOWN_METHOD: &str = "shutdown:()V";
 
 /// Launches the VM
 /// This initialise the JVM itself, loading the given class and invoking it `main` function.
@@ -81,12 +87,54 @@ pub fn run(args: Args<'static>, java_home: impl AsRef<Path>) -> Result<()> {
         };
 
         launcher::execute_main(entry, mode, args.program_args.as_slice())?;
-        Executor::static_method("java/lang/Shutdown", "shutdown:()V", &[])?;
+        Executor::static_method(SHUTDOWN, SHUTDOWN_METHOD, &[])?;
 
         Ok(())
     })();
 
-    todo!()
+    match result {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            if let Some(throwable_ref) = err.throwable_ref() {
+                if let Err(err) = exception_handler(throwable_ref) {
+                    tracing::error!("failed to invoke uncaught exception handler: {err}");
+                }
+
+                let shutdown = Executor::static_method("java/lang/Shutdown", "shutdown:()V", &[]);
+                if let Err(err) = shutdown {
+                    tracing::error!("failed to invoke shutdown hooks: {err}");
+                }
+            }
+
+            Err(err)
+        }
+    }
+}
+
+fn exception_handler(throwable_ref: i32) -> Result<()> {
+    let thread_id = with_method_area(|area| {
+        area.thread_id
+            .get()
+            .copied()
+            .expect("thread_id should be set by this point")
+    });
+
+    let thread_group_id = with_method_area(|area| {
+        area.group_thread_id
+            .get()
+            .copied()
+            .expect("group_thread_id should be set by this point")
+    });
+
+    let uncaught_exception = "uncaughtException:(Ljava/lang/Thread;Ljava/lang/Throwable;)V";
+    Executor::non_static_method(
+        "java/lang/ThreadGroup",
+        uncaught_exception,
+        thread_group_id,
+        &[thread_id.into(), throwable_ref.into()],
+    )?;
+
+    Ok(())
 }
 
 fn setup() -> Result<()> {
@@ -112,4 +160,13 @@ fn logger() -> Result<()> {
         .init();
 
     Ok(())
+}
+
+impl VmError {
+    fn throwable_ref(&self) -> Option<i32> {
+        match self {
+            Self::UncaughtException(throwable) => Some(*throwable),
+            _ => None,
+        }
+    }
 }

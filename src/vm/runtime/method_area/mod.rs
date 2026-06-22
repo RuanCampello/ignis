@@ -49,9 +49,9 @@ pub(in crate::vm) struct MethodArea {
     modules: Arc<Modules>,
     modules_map: HashMap<String, String>,
     ldc: Ldc,
-    thread_id: OnceCell<i32>,
+    pub(in crate::vm) thread_id: OnceCell<i32>,
     /// Thread group created by the VM.
-    group_thread_id: OnceCell<i32>,
+    pub(in crate::vm) group_thread_id: OnceCell<i32>,
 }
 
 #[derive(Debug)]
