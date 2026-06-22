@@ -9,6 +9,7 @@
 
 #![allow(unused)]
 
+use crate::vm::interpreter::executor::Executor;
 use crate::vm::method_area::class;
 use crate::vm::runtime::RuntimeError;
 use crate::vm::runtime::method_area::MethodArea;
@@ -73,6 +74,14 @@ pub fn run(args: Args<'static>, java_home: impl AsRef<Path>) -> Result<()> {
 
     let result = (|| -> Result<()> {
         setup()?;
+
+        let mode = match args.jar_mode {
+            true => launcher::Mode::Jar,
+            _ => launcher::Mode::Class,
+        };
+
+        launcher::execute_main(entry, mode, args.program_args.as_slice())?;
+        Executor::static_method("java/lang/Shutdown", "shutdown:()V", &[])?;
 
         Ok(())
     })();

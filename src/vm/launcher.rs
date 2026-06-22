@@ -18,7 +18,7 @@ pub(in crate::vm) enum Mode {
 
 const PRINT_TO_STDERR: bool = true;
 
-pub(in crate::vm) fn execute_main(classname: &str, mode: Mode, args: &[String]) -> Result<()> {
+pub(in crate::vm) fn execute_main(classname: &str, mode: Mode, args: &[&str]) -> Result<()> {
     let classname = string_pool::get(classname)?;
 
     let check_and_load = "checkAndLoadMain:(ZILjava/lang/String;)Ljava/lang/Class;";
