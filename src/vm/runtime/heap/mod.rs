@@ -20,7 +20,7 @@ pub(in crate::vm) struct Heap {
     ref_by_string: DashMap<String, i32>,
 }
 
-pub(in crate::vm::runtime) static HEAP: LazyLock<Heap> = LazyLock::new(Heap::default);
+pub(in crate::vm) static HEAP: LazyLock<Heap> = LazyLock::new(Heap::default);
 
 #[derive(Debug)]
 /// Represents a value on the heap.
@@ -58,7 +58,7 @@ pub(in crate::vm) struct ClassInstance {
 impl Heap {
     /// Allocates a new *zeroed* array in the heap with the given `length`.
     /// Returns its heap ID.
-    pub fn allocate_array(&mut self, name: &str, length: i32) -> i32 {
+    pub fn allocate_array(&self, name: &str, length: i32) -> i32 {
         let element_size = Array::size(name);
         let len = (length as usize) * element_size;
         let value = vec![0u8; len];
@@ -71,15 +71,31 @@ impl Heap {
         self.objects.insert(HeapValue::Array(array))
     }
 
-    // Allocates a new array in the heap initialised with the given values.
+    // Allocates a new array in the heap initialised with the given raw bytes.
     // Returns its heap ID.
-    pub fn allocate_array_with_values(&mut self, name: &str, array: Vec<u8>) -> i32 {
+    pub fn allocate_array_with_values(&self, name: &str, array: Vec<u8>) -> i32 {
         let array = Array {
             name: name.to_string(),
             value: array,
         };
 
         self.objects.insert(HeapValue::Array(array))
+    }
+
+    pub(in crate::vm::runtime) fn allocate_int_array(&self, values: &[i32]) -> i32 {
+        let bytes = values
+            .iter()
+            .flat_map(|value| value.to_ne_bytes())
+            .collect();
+        self.allocate_array_with_values("[I", bytes)
+    }
+
+    pub(in crate::vm::runtime) fn interned_string(&self, value: &str) -> Option<i32> {
+        self.ref_by_string.get(value).map(|entry| *entry.value())
+    }
+
+    pub(in crate::vm::runtime) fn intern_string(&self, value: &str, reference: i32) {
+        self.ref_by_string.insert(value.to_string(), reference);
     }
 
     /// Allocates this given object instance into the heap.
