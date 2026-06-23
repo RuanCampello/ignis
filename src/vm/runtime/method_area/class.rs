@@ -1,6 +1,7 @@
 #![warn(unused_imports)]
 
 use crate::classfile::{Classfile, FieldFlags, MethodFlags};
+use crate::vm::method_area::internal_and_external_names;
 use crate::vm::{
     Result, VmError,
     interpreter::StackFrame,
@@ -378,6 +379,21 @@ impl Class {
             modifiers: Modifier::empty(),
             external_name: String::default(),
             static_fields_initial_state: Arc::default(),
+            parent: None,
+        }
+    }
+
+    pub(in crate::vm) fn new_synthetic(name: &str) -> Self {
+        let (internal, external_name) = internal_and_external_names(name);
+        Self {
+            name: internal,
+            methods: IndexMap::new(),
+            static_fields: IndexMap::new(),
+            static_fields_initial_state: Arc::default(),
+            modifiers: Modifier::Public | Modifier::Synthetic,
+            fields_hierarchy: OnceCell::new(),
+            fields_schema: IndexMap::new(),
+            external_name,
             parent: None,
         }
     }

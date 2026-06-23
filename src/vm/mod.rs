@@ -9,6 +9,7 @@
 
 #![allow(unused)]
 
+use crate::vm::class::CLASSES;
 use crate::vm::interpreter::executor::Executor;
 use crate::vm::method_area::{class, with_method_area};
 use crate::vm::runtime::RuntimeError;
@@ -143,6 +144,10 @@ fn setup() -> Result<()> {
 
     class::CLASSES.pre()?;
     class::CLASSES.post()?;
+
+    for class in MethodArea::generate_synthetic_classes() {
+        CLASSES.insert(class, None)?;
+    }
 
     Ok(())
 }

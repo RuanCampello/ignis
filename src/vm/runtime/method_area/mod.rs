@@ -112,6 +112,13 @@ impl MethodArea {
         todo!()
     }
 
+    pub(in crate::vm) fn generate_synthetic_classes() -> Vec<Arc<Class>> {
+        PRIMITIVE_TYPE
+            .keys()
+            .map(|classname| Arc::new(Class::new_synthetic(classname)))
+            .collect()
+    }
+
     fn load_from_file(&self, classname: &str) -> Result<Arc<Class>> {
         let class_path = format!("{classname}.class");
 
@@ -145,12 +152,6 @@ impl MethodArea {
                 todo!("load application class `{external}` via Class.forName")
             }
         }
-    }
-
-    fn generate_synthetic_class(classname: &str) -> Arc<Class> {
-        let (internal, external) = internal_and_external_names(classname);
-
-        Arc::new(todo!())
     }
 
     fn parse(&self, buff: &[u8]) -> Result<Option<Arc<Class>>> {
