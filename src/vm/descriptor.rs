@@ -56,13 +56,13 @@
 use std::str::{Chars, FromStr};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(in crate::vm::descriptor) struct MethodDescriptor {
+pub(in crate::vm) struct MethodDescriptor {
     parameters: Vec<TypeDescriptor>,
     return_type: TypeDescriptor,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(in crate::vm::descriptor) enum TypeDescriptor {
+pub(in crate::vm) enum TypeDescriptor {
     Byte,
     Char,
     Double,
@@ -156,6 +156,26 @@ impl FromStr for TypeDescriptor {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         next(&mut s.chars())?.ok_or(Error::InvalidFormat("invalid descriptor"))
+    }
+}
+
+impl From<TypeDescriptor> for Vec<i32> {
+    fn from(value: TypeDescriptor) -> Self {
+        match value {
+            TypeDescriptor::Byte
+            | TypeDescriptor::Char
+            | TypeDescriptor::Integer
+            | TypeDescriptor::Short
+            | TypeDescriptor::Boolean => vec![0],
+            TypeDescriptor::Float => vec![(0.0f32).to_bits() as i32],
+            TypeDescriptor::Long => vec![0, 0],
+            TypeDescriptor::Double => {
+                let bits = (0.0f64).to_bits();
+                vec![(bits >> 32) as i32, bits as i32]
+            }
+            TypeDescriptor::Array(_, _) | TypeDescriptor::Object(_) => vec![0],
+            TypeDescriptor::Void => panic!("void doesn't have a value"),
+        }
     }
 }
 

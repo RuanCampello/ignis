@@ -1,6 +1,7 @@
 #![warn(unused_imports)]
 
 use crate::classfile::{Classfile, FieldFlags, MethodFlags};
+use crate::vm::descriptor::TypeDescriptor;
 use crate::vm::method_area::internal_and_external_names;
 use crate::vm::{
     Result, VmError,
@@ -45,7 +46,12 @@ pub(in crate::vm) struct Class {
     modifiers: Modifier,
 
     fields_hierarchy: OnceCell<IndexMap<String, IndexMap<String, FieldValue>>>,
+    /// default per-instance field values, keyed by field name. this is the template every new
+    /// instance of the class is cloned from
     fields_schema: IndexMap<String, FieldValue>,
+    /// field metadata (type, flags, declaring class) for *every* field, static and instance
+    /// alike — keyed by field name
+    fields_info: IndexMap<String, Arc<FieldInfo>>,
 }
 
 #[derive(Debug, Default)]
@@ -69,6 +75,15 @@ pub(in crate::vm) struct Context {
     max_stack: u16,
     max_locals: u16,
     bytecode: Arc<[u8]>,
+}
+
+#[derive(Debug)]
+pub(in crate::vm) struct FieldInfo {
+    typ: TypeDescriptor,
+    flags: u16,
+    reflection: OnceCell<i32>,
+    classname: String,
+    name: String,
 }
 
 #[derive(Debug)]
@@ -359,6 +374,7 @@ impl Classes {
             methods: IndexMap::new(),
             static_fields: IndexMap::new(),
             fields_schema: IndexMap::new(),
+            fields_info: IndexMap::new(),
             fields_hierarchy: OnceCell::new(),
             static_fields_initial_state: Arc::default(),
         })
@@ -375,6 +391,7 @@ impl Class {
             methods: IndexMap::new(),
             static_fields: IndexMap::new(),
             fields_schema: IndexMap::new(),
+            fields_info: IndexMap::new(),
             fields_hierarchy: OnceCell::new(),
             modifiers: Modifier::empty(),
             external_name: String::default(),
@@ -393,6 +410,7 @@ impl Class {
             modifiers: Modifier::Public | Modifier::Synthetic,
             fields_hierarchy: OnceCell::new(),
             fields_schema: IndexMap::new(),
+            fields_info: IndexMap::new(),
             external_name,
             parent: None,
         }
@@ -411,7 +429,7 @@ impl Class {
 
         let parent = classfile.super_class().map(ToString::to_string);
         let modifiers = Modifier::from_bits_truncate(classfile.access_flags());
-        let classname: Arc<str> = Arc::from(name);
+        let classname = Arc::from(name);
 
         let mut methods = IndexMap::with_capacity(classfile.methods.len());
         for method in classfile.methods {
@@ -451,6 +469,7 @@ impl Class {
 
         let mut static_fields = IndexMap::new();
         let mut fields_schema = IndexMap::new();
+        let mut fields_info = IndexMap::new();
         for field in classfile.fields {
             let name = field
                 .name(pool)
@@ -459,10 +478,25 @@ impl Class {
                 .descriptor(pool)
                 .map_err(|e| RuntimeError::Execution(e.to_string()))?;
 
-            // TODO: honour `ConstantValue` for static finals instead of defaulting.
-            let value = FieldValue::default_for(descriptor);
+            let typ = descriptor
+                .parse::<TypeDescriptor>()
+                .map_err(|e| RuntimeError::Execution(e.to_string()))?;
+            let flags = field.flags();
 
-            match field.flags().contains(FieldFlags::STATIC) {
+            fields_info.insert(
+                name.to_string(),
+                Arc::new(FieldInfo::new(
+                    typ.clone(),
+                    flags.bits(),
+                    classname.to_string(),
+                    name.to_string(),
+                )),
+            );
+
+            // TODO: honour `ConstantValue` for static finals instead of defaulting.
+            let value = FieldValue::new(typ);
+
+            match flags.contains(FieldFlags::STATIC) {
                 true => {
                     static_fields.insert(name.to_string(), Arc::new(value));
                 }
@@ -480,6 +514,7 @@ impl Class {
             parent,
             modifiers,
             fields_schema,
+            fields_info,
             fields_hierarchy: OnceCell::new(),
             static_fields_initial_state: Arc::default(),
         })
@@ -522,6 +557,35 @@ impl Class {
     pub(super) fn default_value_fields(&self) -> IndexMap<String, FieldValue> {
         self.fields_schema.clone()
     }
+
+    pub(in crate::vm) fn field_info(&self, name: &str) -> Option<&Arc<FieldInfo>> {
+        self.fields_info.get(name)
+    }
+
+    pub(in crate::vm) fn instance_field_descriptor(&self, name: &str) -> Option<&TypeDescriptor> {
+        self.fields_info.get(name).map(|info| info.descriptor())
+    }
+
+    pub(in crate::vm) fn put_instance_field(
+        &mut self,
+        name: String,
+        descriptor: TypeDescriptor,
+        flags: u16,
+        classname: &str,
+    ) -> Result<Option<Arc<FieldInfo>>> {
+        self.fields_schema
+            .insert(name.clone(), FieldValue::new(descriptor.clone()));
+
+        Ok(self.fields_info.insert(
+            name.clone(),
+            Arc::new(FieldInfo::new(
+                descriptor,
+                flags,
+                classname.to_string(),
+                name,
+            )),
+        ))
+    }
 }
 
 impl InitialState {
@@ -552,15 +616,26 @@ impl Method {
     }
 }
 
-impl FieldValue {
-    fn default_for(descriptor: &str) -> Self {
-        let slots = match descriptor.starts_with(['J', 'D']) {
-            true => 2,
-            false => 1,
-        };
-
+impl FieldInfo {
+    fn new(typ: TypeDescriptor, flags: u16, classname: String, name: String) -> Self {
         Self {
-            value: RwLock::new(vec![0; slots]),
+            typ,
+            flags,
+            reflection: OnceCell::new(),
+            classname,
+            name,
+        }
+    }
+
+    pub(in crate::vm) fn descriptor(&self) -> &TypeDescriptor {
+        &self.typ
+    }
+}
+
+impl FieldValue {
+    fn new(typ: TypeDescriptor) -> Self {
+        Self {
+            value: RwLock::new(typ.into()),
         }
     }
 

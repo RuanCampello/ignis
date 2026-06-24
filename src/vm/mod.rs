@@ -152,6 +152,36 @@ fn setup() -> Result<()> {
     Ok(())
 }
 
+fn initialise() -> Result<()> {
+    const RESOLVED_METHOD_NAME: &str = "java/lang/invoke/ResolvedMethodName";
+    const VM_TARGET: &str = "vmtarget";
+
+    let class = CLASSES.get(RESOLVED_METHOD_NAME)?;
+    let class = std::sync::Arc::into_raw(class) as *mut class::Class;
+
+    let result = unsafe {
+        (*class).put_instance_field(
+            VM_TARGET.to_string(),
+            descriptor::TypeDescriptor::Long,
+            0,
+            RESOLVED_METHOD_NAME,
+        )
+    };
+
+    // SAFETY: rebuild the `Arc` we turned into a raw pointer above so its strong count stays
+    // balanced, `CLASSES` still holds its own reference, so this never frees the class
+    let _ = unsafe { std::sync::Arc::from_raw(class) };
+
+    match result? {
+        Some(existing) => Err(RuntimeError::Execution(format!(
+            "field {VM_TARGET}:{} already exists in {RESOLVED_METHOD_NAME}",
+            existing.descriptor()
+        ))
+        .into()),
+        None => Ok(()),
+    }
+}
+
 /// Initialise the logger.
 fn logger() -> Result<()> {
     let layer = fmt::layer().with_target(false).with_ansi(false);
