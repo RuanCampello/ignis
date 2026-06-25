@@ -98,7 +98,7 @@ fn invoke_static(classname: &str, frames: &mut StackFrames) -> Result<()> {
     let method = CLASSES.get(owner)?.get_method(&signature)?;
 
     if method.is_native() {
-        let result = native::invoke(owner, &signature, &args)?;
+        let result = native::invoke(owner, &signature, &args, frames)?;
         let caller = frames.last_mut().ok_or(StackError::EmptyStack)?;
         for slot in result.into_iter().rev() {
             caller.push(slot)?;
