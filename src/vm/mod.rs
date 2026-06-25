@@ -10,10 +10,10 @@
 #![allow(unused)]
 
 use crate::vm::class::CLASSES;
-use crate::vm::interpreter::executor::Executor;
+use crate::vm::interpreter::{executor::Executor, static_method::Static};
 use crate::vm::method_area::{class, with_method_area};
-use crate::vm::runtime::RuntimeError;
 use crate::vm::runtime::method_area::MethodArea;
+use crate::vm::runtime::{RuntimeError, string_pool};
 use crate::{Args, vm::runtime::method_area};
 use once_cell::sync::OnceCell;
 use std::{
@@ -49,14 +49,19 @@ pub enum VmError {
 
 static JAVA_HOME: OnceLock<PathBuf> = OnceLock::new();
 static PLATAFORM_CLASS_LOADER: OnceLock<i32> = OnceLock::new();
-static SYSTEM_CLASS_LAODER: OnceLock<i32> = OnceLock::new();
+static SYSTEM_CLASS_LOADER: OnceLock<i32> = OnceLock::new();
 static CLASS_PATH: OnceCell<String> = OnceCell::new();
+static UNNAMED_MODULE: OnceLock<i32> = OnceLock::new();
 
 pub(in crate::vm) type Result<T> = std::result::Result<T, VmError>;
 
 const UNSAFE_CONSTANTS: &str = "jdk/internal/misc/UnsafeConstants";
 const THREAD_GROUP: &str = "java/lang/ThreadGroup";
 const ACCESSIBLE_OBJ: &str = "java/lang/reflect/AccessibleObject";
+const REFLECT_CLASS: &str = "java/lang/reflect/Method";
+const SYSTEM_CLASS: &str = "java/lang/System";
+const CLASS_LOADER: &str = "java/lang/ClassLoader";
+
 const ADDRESS_SIZE: &str = "ADDRESS_SIZE0";
 
 const SHUTDOWN: &str = "java/lang/Shutdown";
@@ -149,6 +154,8 @@ fn setup() -> Result<()> {
         CLASSES.insert(class, None)?;
     }
 
+    initialise()?;
+
     Ok(())
 }
 
@@ -172,13 +179,15 @@ fn initialise() -> Result<()> {
     // balanced, `CLASSES` still holds its own reference, so this never frees the class
     let _ = unsafe { std::sync::Arc::from_raw(class) };
 
-    if let Ok(Some(existing)) = result {
+    if let Some(existing) = result? {
         return Err(RuntimeError::Execution(format!(
             "field {VM_TARGET}:{} already exists in {RESOLVED_METHOD_NAME}",
             existing.descriptor()
         ))
         .into());
     }
+
+    Static::initialise(UNSAFE_CONSTANTS)?;
 
     let unsafe_constants = CLASSES.get(UNSAFE_CONSTANTS)?;
     let set_constant = |field: &str, value: i32| -> Result<()> {
@@ -193,6 +202,65 @@ fn initialise() -> Result<()> {
     set_constant("BIG_ENDIAN", cfg!(target_endian = "big") as i32)?;
     set_constant(ADDRESS_SIZE, std::mem::size_of::<usize>() as i32)?;
     set_constant("PAGE_SIZE", page_size::get() as i32)?;
+
+    let thread_group = Executor::default_constructor(THREAD_GROUP)?;
+    with_method_area(|area| {
+        area.group_thread_id
+            .set(thread_group)
+            .expect("thread_group_id was already set")
+    });
+
+    let thread_name = string_pool::get("system")?;
+    Executor::primordial_thread(&[thread_group.into(), thread_name.into()])?;
+
+    Static::initialise(REFLECT_CLASS)?;
+    Executor::static_method(SYSTEM_CLASS, "initPhase1:()V", &[])?;
+    let init_phase =
+        Executor::static_method(SYSTEM_CLASS, "initPhase2:(ZZ)I", &[1.into(), 1.into()])?[0];
+
+    if init_phase != 0 {
+        return Err(RuntimeError::Execution(format!(
+            "System.initPhase2 returned an error: {init_phase}"
+        ))
+        .into());
+    }
+
+    Executor::static_method(SYSTEM_CLASS, "initPhase3:()V", &[])?;
+
+    PLATAFORM_CLASS_LOADER
+        .set(
+            Executor::static_method(
+                CLASS_LOADER,
+                "getPlatformClassLoader:()Ljava/lang/ClassLoader;",
+                &[],
+            )?[0],
+        )
+        .expect("PLATAFORM_CLASS_LOADER must not be set");
+
+    SYSTEM_CLASS_LOADER
+        .set(
+            Executor::static_method(
+                CLASS_LOADER,
+                "getSystemClassLoader:()Ljava/lang/ClassLoader;",
+                &[],
+            )?[0],
+        )
+        .expect("SYSTEM_CLASS_LOADER must be not set");
+
+    let system_class_ref = SYSTEM_CLASS_LOADER
+        .get()
+        .copied()
+        .expect("SYSTEM_CLASS_LOADER must be set");
+
+    let module_ref = Executor::constructor(
+        "java/lang/Module",
+        "<init>:(Ljava/lang/ClassLoader;)V",
+        &[system_class_ref.into()],
+    )?;
+
+    UNNAMED_MODULE
+        .set(module_ref)
+        .expect("UNNAMED_MODULE must not be set");
 
     Ok(())
 }

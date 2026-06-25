@@ -75,6 +75,36 @@ impl Executor {
         Ok(reference)
     }
 
+    /// builds the primordial `java/lang/Thread`, the bootstrap thread the VM runs on before any
+    /// java code spins up threads of its own
+    pub(in crate::vm) fn primordial_thread(args: &[Value]) -> Result<ValueRef> {
+        const THREAD: &str = "java/lang/Thread";
+        const THREAD_INIT: &str = "<init>:(Ljava/lang/ThreadGroup;Ljava/lang/String;)V";
+
+        let class = CLASSES.get(THREAD)?;
+        let instance = CLASSES.new_instance(THREAD)?;
+        let reference = HEAP.allocate_instance(instance);
+
+        with_method_area(|area| {
+            area.thread_id
+                .set(reference)
+                .expect("primordial thread id was already set")
+        });
+
+        let mut arguments = Vec::with_capacity(args.len() + 1);
+        arguments.push(Value::from(reference));
+        arguments.extend_from_slice(args);
+
+        Self::execute_for_class(
+            &class,
+            THREAD_INIT,
+            &arguments,
+            Some("primordial thread creation"),
+        )?;
+
+        Ok(reference)
+    }
+
     fn execute_for_class(
         class: &Arc<Class>,
         method_name: &str,
