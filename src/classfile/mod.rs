@@ -34,7 +34,7 @@ use thiserror::Error;
 #[derive(Debug, PartialEq, Clone)]
 pub struct Classfile<'cf> {
     version: Version,
-    pub(crate) constant_pool: &'cf ConstantPool<'cf>,
+    pub(crate) constant_pool: ConstantPool,
     access_flags: AccessFlags,
     this_class: u16,
     super_class: u16,
@@ -131,7 +131,7 @@ impl<'c> Classfile<'c> {
         }
         let version = Version::new(major, minor);
 
-        let constant_pool = arena.alloc(ConstantPool::new(&mut reader, arena)?);
+        let constant_pool = ConstantPool::new(&mut reader)?;
         let access_flags = AccessFlags::from_bits_truncate(read::<u16>(&mut reader)?);
         let this_class: u16 = read(&mut reader)?;
         let super_class: u16 = read(&mut reader)?;
@@ -143,8 +143,8 @@ impl<'c> Classfile<'c> {
         }
         let interfaces: &'c [u16] = interfaces.into_bump_slice();
 
-        let fields = parse_fields(&mut reader, constant_pool, arena)?;
-        let methods = parse_methods(&mut reader, constant_pool, arena)?;
+        let fields = parse_fields(&mut reader, &constant_pool, arena)?;
+        let methods = parse_methods(&mut reader, &constant_pool, arena)?;
 
         Ok(Classfile {
             version,
@@ -216,7 +216,7 @@ impl<'c> Classfile<'c> {
     }
 
     pub fn interface_names<'a>(
-        &self,
+        &'c self,
         arena: &'a bumpalo::Bump,
     ) -> Result<&'a [&'c str], ConstantPoolError> {
         let mut names = bumpalo::collections::Vec::new_in(arena);

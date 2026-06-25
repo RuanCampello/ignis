@@ -238,6 +238,26 @@ pub(crate) enum Opcode {
     IF_ICMPLE,
     IF_ACMPEQ,
     IF_ACMPNE,
+
+    // references
+    GET_STATIC = 178,
+    PUT_STATIC,
+    GET_FIELD,
+    PUT_FIELD,
+    INVOKE_VIRTUAL,
+    INVOKE_SPECIAL,
+    INVOKE_STATIC,
+    INVOKE_INTERFACE,
+    INVOKE_DYNAMIC,
+    NEW,
+    NEW_ARRAY,
+    A_NEW_ARRAY,
+    ARRAY_LENGTH,
+    A_THROW,
+    CHECK_CAST,
+    INSTANCE_OF,
+    MONITOR_ENTER,
+    MONITOR_EXIT,
 }
 
 impl std::fmt::Display for Opcode {
@@ -423,6 +443,26 @@ impl std::fmt::Display for Opcode {
             Opcode::IF_ICMPLE => write!(f, "IF_ICMPLE"),
             Opcode::IF_ACMPEQ => write!(f, "IF_ACMPEQ"),
             Opcode::IF_ACMPNE => write!(f, "IF_ACMPNE"),
+
+            // references
+            Opcode::GET_STATIC => write!(f, "GETSTATIC"),
+            Opcode::PUT_STATIC => write!(f, "PUTSTATIC"),
+            Opcode::GET_FIELD => write!(f, "GETFIELD"),
+            Opcode::PUT_FIELD => write!(f, "PUTFIELD"),
+            Opcode::INVOKE_VIRTUAL => write!(f, "INVOKEVIRTUAL"),
+            Opcode::INVOKE_SPECIAL => write!(f, "INVOKESPECIAL"),
+            Opcode::INVOKE_STATIC => write!(f, "INVOKESTATIC"),
+            Opcode::INVOKE_INTERFACE => write!(f, "INVOKEINTERFACE"),
+            Opcode::INVOKE_DYNAMIC => write!(f, "INVOKEDYNAMIC"),
+            Opcode::NEW => write!(f, "NEW"),
+            Opcode::NEW_ARRAY => write!(f, "NEWARRAY"),
+            Opcode::A_NEW_ARRAY => write!(f, "ANEWARRAY"),
+            Opcode::ARRAY_LENGTH => write!(f, "ARRAYLENGTH"),
+            Opcode::A_THROW => write!(f, "ATHROW"),
+            Opcode::CHECK_CAST => write!(f, "CHECKCAST"),
+            Opcode::INSTANCE_OF => write!(f, "INSTANCEOF"),
+            Opcode::MONITOR_ENTER => write!(f, "MONITORENTER"),
+            Opcode::MONITOR_EXIT => write!(f, "MONITOREXIT"),
         }
     }
 }

@@ -55,13 +55,13 @@ impl<'c> Method<'c> {
         self.access_flags
     }
 
-    pub(crate) fn name(&self, pool: &'c ConstantPool<'c>) -> Result<&'c str, ConstantPoolError> {
+    pub(crate) fn name(&self, pool: &'c ConstantPool) -> Result<&'c str, ConstantPoolError> {
         pool.get_utf8(self.name_index)
     }
 
     pub(crate) fn descriptor(
         &self,
-        pool: &'c ConstantPool<'c>,
+        pool: &'c ConstantPool,
     ) -> Result<&'c str, ConstantPoolError> {
         pool.get_utf8(self.descriptor_index)
     }
@@ -94,7 +94,7 @@ impl<'c> Method<'c> {
 
 pub(in crate::classfile) fn parse_methods<'m>(
     reader: &mut BufReader<impl Read>,
-    constant_pool: &'m ConstantPool<'m>,
+    constant_pool: &ConstantPool,
     arena: &'m Bump,
 ) -> Result<&'m [Method<'m>], ClassfileError> {
     let methods_count = read::<u16>(reader)? as usize;

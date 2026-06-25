@@ -5,17 +5,17 @@
 //!
 //! [constant pool]: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-2.html#jvms-2.5.5
 
-use bumpalo::{Bump, collections::Vec};
 use core::fmt::{Display, Formatter};
 use std::io::{BufReader, Cursor, Read, Seek, SeekFrom};
+use std::sync::Arc;
 use thiserror::Error;
 
 use crate::classfile::ClassfileError;
 
 /// Constant pool of a given Java class.
-#[derive(Debug, PartialEq, Clone)]
-pub(crate) struct ConstantPool<'c> {
-    entries: Vec<'c, Option<ConstantPoolEntry<'c>>>,
+#[derive(Debug, PartialEq, Clone, Default)]
+pub(crate) struct ConstantPool {
+    entries: Vec<Option<ConstantPoolEntry>>,
 }
 
 /// A given entry in the constant pool.
@@ -23,10 +23,10 @@ pub(crate) struct ConstantPool<'c> {
 /// It's defined by the [specification] by having a `tag` and `info`.
 ///
 /// [specification]: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.4
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone)]
 #[repr(u8)]
-pub(crate) enum ConstantPoolEntry<'c> {
-    Utf8(&'c str) = 1,
+pub(crate) enum ConstantPoolEntry {
+    Utf8(Arc<str>) = 1,
     Integer(i32) = 3,
     Float(f32) = 4,
     Long(i64) = 5,
@@ -60,15 +60,12 @@ pub enum ConstantPoolError {
     Formatter(#[from] core::fmt::Error),
 }
 
-impl<'c> ConstantPool<'c> {
-    pub fn new(
-        reader: &mut BufReader<&'c [u8]>,
-        arena: &'c bumpalo::Bump,
-    ) -> Result<Self, ClassfileError> {
+impl ConstantPool {
+    pub fn new(reader: &mut BufReader<&[u8]>) -> Result<Self, ClassfileError> {
         use crate::classfile::read;
 
         let count = read::<u16>(reader)? as usize;
-        let mut pool = ConstantPool::with_capacity(count, arena);
+        let mut pool = ConstantPool::with_capacity(count);
         let mut idx = 0;
 
         while idx < count - 1 {
@@ -76,13 +73,12 @@ impl<'c> ConstantPool<'c> {
             let entry = match tag {
                 1 => {
                     let length = read::<u16>(reader)? as usize;
-                    let mut bytes = bumpalo::vec![in arena; 0; length];
+                    let mut bytes = vec![0u8; length];
                     reader.read_exact(&mut bytes)?;
 
                     let utf8 = cesu8::from_java_cesu8(&bytes)?;
-                    let string = arena.alloc_str(&utf8);
 
-                    ConstantPoolEntry::Utf8(string)
+                    ConstantPoolEntry::Utf8(Arc::from(utf8.as_ref()))
                 }
                 3 => ConstantPoolEntry::Integer(read::<i32>(reader)?),
                 4 => ConstantPoolEntry::Float(read::<f32>(reader)?),
@@ -124,31 +120,36 @@ impl<'c> ConstantPool<'c> {
         Ok(pool)
     }
 
-    pub fn with_capacity(capacity: usize, arena: &'c Bump) -> Self {
+    pub fn with_capacity(capacity: usize) -> Self {
         ConstantPool {
-            entries: Vec::with_capacity_in(capacity, arena),
+            entries: Vec::with_capacity(capacity),
         }
     }
 
-    pub fn push(&mut self, entry: ConstantPoolEntry<'c>) {
+    pub fn push(&mut self, entry: ConstantPoolEntry) {
+        let two_slots = entry.uses_two_slots();
         self.entries.push(Some(entry));
 
-        if entry.uses_two_slots() {
+        if two_slots {
             self.entries.push(None);
         }
+    }
+
+    pub(crate) fn entries(&self) -> &[Option<ConstantPoolEntry>] {
+        self.entries.as_slice()
     }
 
     /// Tries to access a [pool entry](ConstantPoolEntry) in a given index.
     ///
     /// **Note**: it uses 1-index based.
-    pub fn get(&self, index: u16) -> Result<&ConstantPoolEntry<'_>, ConstantPoolError> {
+    pub fn get(&self, index: u16) -> Result<&ConstantPoolEntry, ConstantPoolError> {
         self.get_with(index, |entry| Ok(entry))
     }
 
     /// Resolves a [Utf8](ConstantPoolEntry::Utf8) entry into its underlying string
     pub fn get_utf8(&self, index: u16) -> Result<&str, ConstantPoolError> {
         self.get_with(index, |entry| match entry {
-            ConstantPoolEntry::Utf8(string) => Ok(*string),
+            ConstantPoolEntry::Utf8(string) => Ok(&**string),
             _ => Err(ConstantPoolError::InvalidIndex(index)),
         })
     }
@@ -160,13 +161,34 @@ impl<'c> ConstantPool<'c> {
         })
     }
 
-    pub fn get_with<F, T>(
-        &'c self,
+    pub fn member_ref(&self, index: u16) -> Result<(&str, &str, &str), ConstantPoolError> {
+        let (class_index, name_and_type_index) = match self.get(index)? {
+            ConstantPoolEntry::MethodRef(class, name_and_type)
+            | ConstantPoolEntry::FieldRef(class, name_and_type)
+            | ConstantPoolEntry::InterfaceMethodRef(class, name_and_type) => {
+                (*class, *name_and_type)
+            }
+            _ => return Err(ConstantPoolError::InvalidIndex(index)),
+        };
+
+        let class = self.get_classname(class_index)?;
+        let (name, descriptor) = match self.get(name_and_type_index)? {
+            ConstantPoolEntry::NameAndType(name, descriptor) => {
+                (self.get_utf8(*name)?, self.get_utf8(*descriptor)?)
+            }
+            _ => return Err(ConstantPoolError::InvalidIndex(name_and_type_index)),
+        };
+
+        Ok((class, name, descriptor))
+    }
+
+    pub fn get_with<'s, F, T>(
+        &'s self,
         index: u16,
         check_and_convert: F,
     ) -> Result<T, ConstantPoolError>
     where
-        F: FnOnce(&'c ConstantPoolEntry<'c>) -> Result<T, ConstantPoolError>,
+        F: FnOnce(&'s ConstantPoolEntry) -> Result<T, ConstantPoolError>,
     {
         if index == 0 || index as usize > self.entries.len() {
             return Err(ConstantPoolError::InvalidIndex(index));
@@ -267,7 +289,7 @@ impl<'c> ConstantPool<'c> {
     }
 }
 
-impl<'c> ConstantPoolEntry<'c> {
+impl ConstantPoolEntry {
     /// JVM mandates that `Long` and `Double` constraints must occupy two slots in the constant
     /// pool.
     /// This is due to historical architectural constraints and alignment, tied to the JVM's
@@ -277,7 +299,7 @@ impl<'c> ConstantPoolEntry<'c> {
     }
 }
 
-impl<'c> Display for ConstantPool<'c> {
+impl Display for ConstantPool {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Constant pool with size: {}", self.entries.len())?;
 
@@ -294,20 +316,11 @@ impl<'c> Display for ConstantPool<'c> {
 mod tests {
     use super::*;
 
-    impl<'c> ConstantPool<'c> {
-        fn default(bump: &'c Bump) -> Self {
-            Self {
-                entries: bumpalo::collections::Vec::new_in(bump),
-            }
-        }
-    }
-
     #[test]
     fn constant_pool() -> Result<(), ConstantPoolError> {
-        let arena = Bump::new();
-        let mut pool = ConstantPool::default(&arena);
+        let mut pool = ConstantPool::default();
 
-        pool.push(ConstantPoolEntry::Utf8("hello world")); // 1
+        pool.push(ConstantPoolEntry::Utf8("hello world".into())); // 1
         pool.push(ConstantPoolEntry::Integer(1i32)); // 2
         pool.push(ConstantPoolEntry::Long(2i64)); // 3 - 4
         pool.push(ConstantPoolEntry::Double(f64::EPSILON)); // 5 - 6
@@ -324,7 +337,7 @@ mod tests {
         assert_eq!(pool.get(4).unwrap_err(), ConstantPoolError::UnusableSlot(4));
         assert_eq!(pool.get(6).unwrap_err(), ConstantPoolError::UnusableSlot(6));
 
-        assert_eq!(pool.get(1)?, &ConstantPoolEntry::Utf8("hello world"));
+        assert_eq!(pool.get(1)?, &ConstantPoolEntry::Utf8("hello world".into()));
         assert_eq!(pool.get(8)?, &ConstantPoolEntry::MethodRef(1, 7));
         assert_eq!(pool.get(9)?, &ConstantPoolEntry::FieldRef(1, 7));
 

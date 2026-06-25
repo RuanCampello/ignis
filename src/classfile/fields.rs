@@ -52,13 +52,13 @@ impl<'f> Field<'f> {
         self.access_flags
     }
 
-    pub(crate) fn name(&self, pool: &'f ConstantPool<'f>) -> Result<&'f str, ConstantPoolError> {
+    pub(crate) fn name(&self, pool: &'f ConstantPool) -> Result<&'f str, ConstantPoolError> {
         pool.get_utf8(self.name_index)
     }
 
     pub(crate) fn descriptor(
         &self,
-        pool: &'f ConstantPool<'f>,
+        pool: &'f ConstantPool,
     ) -> Result<&'f str, ConstantPoolError> {
         pool.get_utf8(self.descriptor_index)
     }
@@ -66,7 +66,7 @@ impl<'f> Field<'f> {
 
 pub(in crate::classfile) fn parse_fields<'c>(
     reader: &mut BufReader<impl Read>,
-    constant_pool: &'c ConstantPool<'c>,
+    constant_pool: &ConstantPool,
     arena: &'c Bump,
 ) -> Result<&'c [Field<'c>], ClassfileError> {
     let fields_count = read::<u16>(reader)? as usize;

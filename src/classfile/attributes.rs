@@ -281,7 +281,7 @@ impl<'at> Attribute<'at> {
         reader: &mut BufReader<impl Read>,
         name_index: u16,
         length: u32,
-        constant_pool: &'at ConstantPool<'at>,
+        constant_pool: &ConstantPool,
         arena: &'at bumpalo::Bump,
     ) -> Result<Self, ClassfileError> {
         let attribute_name: &str = constant_pool.get_with(name_index, |entry| match entry {
@@ -669,7 +669,7 @@ impl From<u8> for FrameType {
 
 pub(in crate::classfile) fn get_attributes<'at>(
     reader: &mut BufReader<impl Read>,
-    constant_pool: &'at ConstantPool<'at>,
+    constant_pool: &ConstantPool,
     arena: &'at bumpalo::Bump,
 ) -> Result<&'at [Attribute<'at>], ClassfileError> {
     let attributes_count: u16 = read(reader)?;
@@ -688,7 +688,7 @@ pub(in crate::classfile) fn get_attributes<'at>(
 }
 fn get_annotation<'at>(
     reader: &mut BufReader<impl Read>,
-    constant_pool: &'at ConstantPool<'at>,
+    constant_pool: &ConstantPool,
     arena: &'at bumpalo::Bump,
 ) -> Result<Annotation<'at>, ClassfileError> {
     let type_index: u16 = read(reader)?;
@@ -713,7 +713,7 @@ fn get_annotation<'at>(
 
 fn get_element_value<'el>(
     reader: &mut BufReader<impl Read>,
-    constant_pool: &'el ConstantPool,
+    constant_pool: &ConstantPool,
     arena: &'el bumpalo::Bump,
 ) -> Result<ElementValue<'el>, ClassfileError> {
     let tag: u8 = read(reader)?;

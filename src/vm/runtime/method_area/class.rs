@@ -1,6 +1,6 @@
 #![warn(unused_imports)]
 
-use crate::classfile::{Classfile, FieldFlags, MethodFlags};
+use crate::classfile::{Classfile, ConstantPool, FieldFlags, MethodFlags};
 use crate::vm;
 use crate::vm::descriptor::TypeDescriptor;
 use crate::vm::method_area::internal_and_external_names;
@@ -53,6 +53,7 @@ pub(in crate::vm) struct Class {
     /// field metadata (type, flags, declaring class) for *every* field, static and instance
     /// alike — keyed by field name
     fields_info: IndexMap<String, Arc<FieldInfo>>,
+    pub(in crate::vm) constant_pool: ConstantPool,
 }
 
 #[derive(Debug, Default)]
@@ -379,6 +380,7 @@ impl Classes {
             static_fields: IndexMap::new(),
             fields_schema: IndexMap::new(),
             fields_info: IndexMap::new(),
+            constant_pool: ConstantPool::default(),
             fields_hierarchy: OnceCell::new(),
             static_fields_initial_state: Arc::default(),
         })
@@ -396,6 +398,7 @@ impl Class {
             static_fields: IndexMap::new(),
             fields_schema: IndexMap::new(),
             fields_info: IndexMap::new(),
+            constant_pool: ConstantPool::default(),
             fields_hierarchy: OnceCell::new(),
             modifiers: Modifier::empty(),
             external_name: String::default(),
@@ -415,6 +418,7 @@ impl Class {
             fields_hierarchy: OnceCell::new(),
             fields_schema: IndexMap::new(),
             fields_info: IndexMap::new(),
+            constant_pool: ConstantPool::default(),
             external_name,
             parent: None,
         }
@@ -425,11 +429,11 @@ impl Class {
     /// `name` is the already-resolved internal name of the class, see
     /// [internal_and_external_names](super::internal_and_external_names).
     pub(super) fn from_classfile(
-        classfile: &Classfile,
+        classfile: Classfile<'_>,
         name: &str,
         external: String,
     ) -> Result<Self> {
-        let pool = classfile.constant_pool;
+        let pool = &classfile.constant_pool;
 
         let parent = classfile.super_class().map(ToString::to_string);
         let modifiers = Modifier::from_bits_truncate(classfile.access_flags());
@@ -519,6 +523,7 @@ impl Class {
             modifiers,
             fields_schema,
             fields_info,
+            constant_pool: classfile.constant_pool,
             fields_hierarchy: OnceCell::new(),
             static_fields_initial_state: Arc::default(),
         })

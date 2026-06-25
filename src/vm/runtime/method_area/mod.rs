@@ -163,7 +163,7 @@ impl MethodArea {
         })?;
         let (internal, external) = internal_and_external_names(name);
 
-        let class = Class::from_classfile(&classfile, &internal, external)?;
+        let class = Class::from_classfile(classfile, &internal, external)?;
 
         Ok(Some(Arc::new(class)))
     }
