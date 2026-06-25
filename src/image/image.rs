@@ -216,7 +216,7 @@ impl Image {
         attributes: &[u64; 8],
         kind: AttributeKind,
     ) -> Result<Cow<'_, str>, Error> {
-        let offset = self.header.items() as usize;
+        let offset = attributes[kind as usize] as usize;
         let value = self.get_string(offset)?;
 
         Ok(Cow::Borrowed(value))
@@ -225,9 +225,11 @@ impl Image {
     fn get_string(&self, index: usize) -> Result<&str, Error> {
         let offset = self.header.strings(index);
         let string = &self.mmap[offset..];
-        let len = memchr::memchr(0, string).ok_or(Error::Other(format!(
-            "Failed to find null-termination in string: {string:02x?} from offset {offset}"
-        )))?;
+        let len = memchr::memchr(0, string).ok_or_else(|| {
+            Error::Other(format!(
+                "Failed to find null-termination in string at offset {offset}"
+            ))
+        })?;
 
         let slice = &self.mmap[offset..offset + len];
         let value = std::str::from_utf8(slice).map_err(|err| Error::Utf8 {
