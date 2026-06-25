@@ -25,3 +25,4 @@ whoami = { version = "2.1.2", default-features = false }
 
 [dev-dependencies]
 rstest = { version = "0.26.1", default-features = false }
+rusty-fork = "0.3.1"
