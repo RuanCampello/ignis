@@ -66,7 +66,6 @@ pub(in crate::vm) struct Method {
     classname: Arc<str>,
     signature: Arc<str>,
     context: Option<Context>,
-    /// Indicates wheter a method is native or not.
     native: bool,
 
     annotations: Option<Vec<u8>>,
@@ -608,6 +607,10 @@ impl InitialState {
 }
 
 impl Method {
+    pub(in crate::vm) fn is_native(&self) -> bool {
+        self.native
+    }
+
     pub fn new_frame(&self) -> Result<StackFrame> {
         match &self.context {
             Some(ctx) => Ok(StackFrame::new(

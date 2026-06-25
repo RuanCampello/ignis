@@ -239,6 +239,19 @@ pub(crate) enum Opcode {
     IF_ACMPEQ,
     IF_ACMPNE,
 
+    // control transfer
+    GOTO,
+    JSR,
+    RET,
+    TABLE_SWITCH,
+    LOOKUP_SWITCH,
+    I_RETURN,
+    L_RETURN,
+    F_RETURN,
+    D_RETURN,
+    A_RETURN,
+    RETURN,
+
     // references
     GET_STATIC = 178,
     PUT_STATIC,
@@ -443,6 +456,19 @@ impl std::fmt::Display for Opcode {
             Opcode::IF_ICMPLE => write!(f, "IF_ICMPLE"),
             Opcode::IF_ACMPEQ => write!(f, "IF_ACMPEQ"),
             Opcode::IF_ACMPNE => write!(f, "IF_ACMPNE"),
+
+            // control transfer
+            Opcode::GOTO => write!(f, "GOTO"),
+            Opcode::JSR => write!(f, "JSR"),
+            Opcode::RET => write!(f, "RET"),
+            Opcode::TABLE_SWITCH => write!(f, "TABLESWITCH"),
+            Opcode::LOOKUP_SWITCH => write!(f, "LOOKUPSWITCH"),
+            Opcode::I_RETURN => write!(f, "IRETURN"),
+            Opcode::L_RETURN => write!(f, "LRETURN"),
+            Opcode::F_RETURN => write!(f, "FRETURN"),
+            Opcode::D_RETURN => write!(f, "DRETURN"),
+            Opcode::A_RETURN => write!(f, "ARETURN"),
+            Opcode::RETURN => write!(f, "RETURN"),
 
             // references
             Opcode::GET_STATIC => write!(f, "GETSTATIC"),

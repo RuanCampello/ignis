@@ -10,6 +10,7 @@ pub(in crate::vm) use stack::StackFrame;
 pub mod executor;
 mod instructions;
 pub(in crate::vm) mod ldc;
+pub(in crate::vm::interpreter) mod native;
 pub(in crate::vm) mod stack;
 pub mod static_method;
 
@@ -34,7 +35,7 @@ pub(in crate::vm::interpreter) fn execute(frame: StackFrame) -> Result<Vec<Value
             )
         };
 
-        instructions::process(code, &classname, &mut frames)?
+        last = instructions::process(code, &classname, &mut frames)?;
     }
 
     Ok(last)

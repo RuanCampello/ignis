@@ -127,6 +127,22 @@ fn next(chars: &mut Chars) -> Result<Option<TypeDescriptor>, Error> {
     })
 }
 
+impl MethodDescriptor {
+    pub(in crate::vm) fn arguments_size(&self) -> usize {
+        self.parameters.iter().map(TypeDescriptor::size).sum()
+    }
+}
+
+impl TypeDescriptor {
+    #[inline]
+    const fn size(&self) -> usize {
+        match self {
+            TypeDescriptor::Long | TypeDescriptor::Double => 2,
+            _ => 1,
+        }
+    }
+}
+
 impl FromStr for MethodDescriptor {
     type Err = Error;
 

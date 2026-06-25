@@ -66,6 +66,9 @@ pub(in crate::vm) trait StackValue: Sized + Default + Copy {
     fn pop_from(frame: &mut StackFrame) -> Result<Self>;
 
     fn from_slice(value: &[ValueRef]) -> Self;
+
+    /// The value's operand-slot representation, the inverse of [`from_slice`](Self::from_slice).
+    fn to_vec(&self) -> Vec<ValueRef>;
 }
 
 macro_rules! maybe_nan {
@@ -500,6 +503,10 @@ impl StackValue for i32 {
     fn from_slice(value: &[ValueRef]) -> Self {
         value[0]
     }
+
+    fn to_vec(&self) -> Vec<ValueRef> {
+        vec![*self]
+    }
 }
 
 impl StackValue for i64 {
@@ -537,6 +544,10 @@ impl StackValue for i64 {
         let (h, l) = (value[0], value[1]);
         from_i32_to_i64(l, h)
     }
+
+    fn to_vec(&self) -> Vec<ValueRef> {
+        vec![(*self >> 32) as i32, *self as i32]
+    }
 }
 
 impl StackValue for f32 {
@@ -562,6 +573,10 @@ impl StackValue for f32 {
         let value: i32 = StackValue::from_slice(value);
         f32::from_bits(value as u32)
     }
+
+    fn to_vec(&self) -> Vec<ValueRef> {
+        vec![self.to_bits() as i32]
+    }
 }
 
 impl StackValue for f64 {
@@ -586,6 +601,11 @@ impl StackValue for f64 {
     fn from_slice(value: &[ValueRef]) -> Self {
         let value: i64 = StackValue::from_slice(value);
         f64::from_bits(value as u64)
+    }
+
+    fn to_vec(&self) -> Vec<ValueRef> {
+        let bits = self.to_bits();
+        vec![(bits >> 32) as i32, bits as i32]
     }
 }
 
