@@ -9,7 +9,7 @@
 
 #![allow(unused)]
 
-use crate::vm::class::CLASSES;
+use crate::vm::class::{CLASSES, Class};
 use crate::vm::interpreter::{executor::Executor, static_method::Static};
 use crate::vm::method_area::{class, with_method_area};
 use crate::vm::runtime::method_area::MethodArea;
@@ -51,7 +51,7 @@ static JAVA_HOME: OnceLock<PathBuf> = OnceLock::new();
 static PLATAFORM_CLASS_LOADER: OnceLock<i32> = OnceLock::new();
 static SYSTEM_CLASS_LOADER: OnceLock<i32> = OnceLock::new();
 static CLASS_PATH: OnceCell<String> = OnceCell::new();
-static UNNAMED_MODULE: OnceLock<i32> = OnceLock::new();
+pub(in crate::vm) static UNNAMED_MODULE: OnceLock<i32> = OnceLock::new();
 
 pub(in crate::vm) type Result<T> = std::result::Result<T, VmError>;
 
@@ -148,6 +148,7 @@ fn setup() -> Result<()> {
     MethodArea::initialise()?;
 
     class::CLASSES.pre()?;
+    patch_class_mirror_fields()?;
     class::CLASSES.post()?;
 
     for class in MethodArea::generate_synthetic_classes() {
@@ -163,29 +164,11 @@ fn initialise() -> Result<()> {
     const RESOLVED_METHOD_NAME: &str = "java/lang/invoke/ResolvedMethodName";
     const VM_TARGET: &str = "vmtarget";
 
-    let class = CLASSES.get(RESOLVED_METHOD_NAME)?;
-    let class = std::sync::Arc::into_raw(class) as *mut class::Class;
-
-    let result = unsafe {
-        (*class).put_instance_field(
-            VM_TARGET.to_string(),
-            descriptor::TypeDescriptor::Long,
-            0,
-            RESOLVED_METHOD_NAME,
-        )
-    };
-
-    // SAFETY: rebuild the `Arc` we turned into a raw pointer above so its strong count stays
-    // balanced, `CLASSES` still holds its own reference, so this never frees the class
-    let _ = unsafe { std::sync::Arc::from_raw(class) };
-
-    if let Some(existing) = result? {
-        return Err(RuntimeError::Execution(format!(
-            "field {VM_TARGET}:{} already exists in {RESOLVED_METHOD_NAME}",
-            existing.descriptor()
-        ))
-        .into());
-    }
+    put_synthetic_field(
+        RESOLVED_METHOD_NAME,
+        VM_TARGET,
+        descriptor::TypeDescriptor::Long,
+    )?;
 
     Static::initialise(UNSAFE_CONSTANTS)?;
 
@@ -261,6 +244,40 @@ fn initialise() -> Result<()> {
     UNNAMED_MODULE
         .set(module_ref)
         .expect("UNNAMED_MODULE must not be set");
+
+    Ok(())
+}
+
+fn patch_class_mirror_fields() -> Result<()> {
+    use descriptor::TypeDescriptor;
+
+    put_synthetic_field(Class::CLASS, "primitive", TypeDescriptor::Boolean)?;
+    put_synthetic_field(Class::CLASS, "modifiers", TypeDescriptor::Integer)?;
+
+    Ok(())
+}
+
+fn put_synthetic_field(
+    classname: &str,
+    name: &str,
+    descriptor: descriptor::TypeDescriptor,
+) -> Result<()> {
+    let class = CLASSES.get(classname)?;
+    let class = std::sync::Arc::into_raw(class) as *mut class::Class;
+
+    let result = unsafe { (*class).put_instance_field(name.to_string(), descriptor, 0, classname) };
+
+    // SAFETY: rebuild the `Arc` we turned into a raw pointer above so its strong count stays
+    // balanced, `CLASSES` still holds its own reference, so this never frees the class
+    let _ = unsafe { std::sync::Arc::from_raw(class) };
+
+    if let Some(existing) = result? {
+        return Err(RuntimeError::Execution(format!(
+            "field {name}:{} already exists in {classname}",
+            existing.descriptor()
+        ))
+        .into());
+    }
 
     Ok(())
 }

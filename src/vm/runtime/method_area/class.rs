@@ -1,6 +1,7 @@
 #![warn(unused_imports)]
 
 use crate::classfile::{Classfile, FieldFlags, MethodFlags};
+use crate::vm;
 use crate::vm::descriptor::TypeDescriptor;
 use crate::vm::method_area::internal_and_external_names;
 use crate::vm::{
@@ -275,11 +276,13 @@ impl Classes {
         class_loader_ref: Option<i32>,
     ) -> Result<()> {
         let (class, id) = class;
+        let (class_class, class_class_id) = class_class;
+
         let mut instance = Instance::Class(ClassInstance {
             class_id: id,
             instance: BaseInstance {
-                id,
-                fields: class.get_instance_fields()?.clone(),
+                id: class_class_id,
+                fields: class_class.get_instance_fields()?.clone(),
             },
         });
         instance.set_field_value(
@@ -315,7 +318,8 @@ impl Classes {
                     (module, patch)
                 }
                 _ => {
-                    todo!("unnamed module");
+                    let module = vm::UNNAMED_MODULE.get().copied().unwrap_or(0);
+                    (module, false)
                 }
             }
         });
@@ -382,7 +386,7 @@ impl Classes {
 }
 
 impl Class {
-    pub(in crate::vm::runtime) const CLASS: &str = "java/lang/Class";
+    pub(in crate::vm) const CLASS: &str = "java/lang/Class";
     const OBJECT: &str = "java/lang/Object";
 
     pub fn with_classname(classname: &str) -> Self {

@@ -102,7 +102,8 @@ impl Heap {
         self.objects
             .get(&class_ref)
             .and_then(|entry| match entry.value() {
-                HeapValue::Object(Instance::Base(instance)) => Some(instance.id),
+                HeapValue::Object(Instance::Class(class_instance)) => Some(class_instance.class_id),
+                // HeapValue::Object(Instance::Base(instance)) => Some(instance.id),
                 _ => None,
             })
             .ok_or_else(|| {
