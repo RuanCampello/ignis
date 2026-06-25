@@ -172,14 +172,29 @@ fn initialise() -> Result<()> {
     // balanced, `CLASSES` still holds its own reference, so this never frees the class
     let _ = unsafe { std::sync::Arc::from_raw(class) };
 
-    match result? {
-        Some(existing) => Err(RuntimeError::Execution(format!(
+    if let Ok(Some(existing)) = result {
+        return Err(RuntimeError::Execution(format!(
             "field {VM_TARGET}:{} already exists in {RESOLVED_METHOD_NAME}",
             existing.descriptor()
         ))
-        .into()),
-        None => Ok(()),
+        .into());
     }
+
+    let unsafe_constants = CLASSES.get(UNSAFE_CONSTANTS)?;
+    let set_constant = |field: &str, value: i32| -> Result<()> {
+        unsafe_constants
+            .get_static(field)
+            .ok_or_else(|| {
+                RuntimeError::Execution(format!("{UNSAFE_CONSTANTS}.{field} is missing"))
+            })?
+            .set(vec![value])
+    };
+
+    set_constant("BIG_ENDIAN", cfg!(target_endian = "big") as i32)?;
+    set_constant(ADDRESS_SIZE, std::mem::size_of::<usize>() as i32)?;
+    set_constant("PAGE_SIZE", page_size::get() as i32)?;
+
+    Ok(())
 }
 
 /// Initialise the logger.
