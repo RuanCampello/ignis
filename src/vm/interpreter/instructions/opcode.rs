@@ -253,7 +253,7 @@ pub(crate) enum Opcode {
     RETURN,
 
     // references
-    GET_STATIC = 178,
+    GET_STATIC,
     PUT_STATIC,
     GET_FIELD,
     PUT_FIELD,
@@ -271,6 +271,12 @@ pub(crate) enum Opcode {
     INSTANCE_OF,
     MONITOR_ENTER,
     MONITOR_EXIT,
+
+    WIDE,
+    MULTI_A_NEW_ARRAY,
+    IF_NULL,
+    IF_NON_NULL,
+    GOTO_W,
 }
 
 impl std::fmt::Display for Opcode {
@@ -489,6 +495,13 @@ impl std::fmt::Display for Opcode {
             Opcode::INSTANCE_OF => write!(f, "INSTANCEOF"),
             Opcode::MONITOR_ENTER => write!(f, "MONITORENTER"),
             Opcode::MONITOR_EXIT => write!(f, "MONITOREXIT"),
+
+            // extended
+            Opcode::WIDE => write!(f, "WIDE"),
+            Opcode::MULTI_A_NEW_ARRAY => write!(f, "MULTIANEWARRAY"),
+            Opcode::IF_NULL => write!(f, "IFNULL"),
+            Opcode::IF_NON_NULL => write!(f, "IFNONNULL"),
+            Opcode::GOTO_W => write!(f, "GOTOW"),
         }
     }
 }

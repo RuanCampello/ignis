@@ -135,7 +135,7 @@ impl MethodDescriptor {
 
 impl TypeDescriptor {
     #[inline]
-    const fn size(&self) -> usize {
+    pub(in crate::vm) const fn size(&self) -> usize {
         match self {
             TypeDescriptor::Long | TypeDescriptor::Double => 2,
             _ => 1,

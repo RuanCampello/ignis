@@ -8,7 +8,7 @@ use tracing::trace;
 pub(in crate::vm) struct StackFrame {
     /// Program counter. This indicates the address of the next bytecode instruction
     /// to be executed.
-    pub(super) pc: usize,
+    pub(in crate::vm::interpreter) pc: usize,
     /// Stores the `pc` before a method invocation. If an exception in thrown during this given
     /// invoked method, this value is restored to the `pc` handle the exception.
     ex_pc: Option<usize>,
@@ -19,7 +19,7 @@ pub(in crate::vm) struct StackFrame {
     operand_stack: Stack<ValueRef>,
     /// Shared reference to the bytecode of the method associated with this frame.
     bytecode: Arc<[u8]>,
-    pub(super) current_classname: Arc<str>,
+    pub(in crate::vm::interpreter) current_classname: Arc<str>,
 }
 
 pub(super) struct StackFrames {
@@ -262,6 +262,12 @@ impl StackFrame {
 
         trace!("{code} -> {curr} + {constant} = {next}");
         Ok(())
+    }
+
+    pub(in crate::vm::interpreter) fn branch(&mut self, code: Opcode) {
+        let offset = ((self.get_byte(self.pc + 1) as i16) << 8) | self.get_byte(self.pc + 2) as i16;
+        self.step_pc(offset);
+        trace!("{code} -> {offset}");
     }
 
     pub(in crate::vm::interpreter) fn unary_branch(

@@ -18,6 +18,13 @@ pub(in crate::vm::interpreter::instructions) fn process(
             frames.quit_frame();
             Ok(vec![])
         }
+        GOTO => {
+            frames
+                .last_mut()
+                .ok_or(StackError::EmptyStack)?
+                .branch(GOTO);
+            Ok(vec![])
+        }
         _ => todo!("control opcode not yet handled: {code}"),
     }
 }

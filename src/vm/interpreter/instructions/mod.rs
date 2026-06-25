@@ -9,6 +9,7 @@ mod comparisons;
 mod constants;
 mod control;
 mod conversions;
+mod extended;
 mod loads;
 mod math;
 mod references;
@@ -34,7 +35,8 @@ pub(in crate::vm::interpreter) fn process(
         96..=132 => math::process(code, frames),
         133..=147 => conversions::process(code, frames),
         148..=166 => comparisons::process(code, frames),
-        178..=201 => references::process(code, classname, frames),
+        178..=195 => references::process(code, classname, frames),
+        196..=200 => extended::process(code, frames),
         _ => unreachable!("Tried to process: {code} code"),
     }?;
 

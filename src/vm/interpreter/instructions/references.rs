@@ -1,10 +1,11 @@
 use super::opcode::Opcode::{self, *};
 use crate::vm::{
     Result,
-    descriptor::MethodDescriptor,
+    descriptor::{MethodDescriptor, TypeDescriptor},
     interpreter::{
         native,
         stack::{StackError, StackFrames, ValueRef},
+        static_method::Static,
     },
     method_area::class::CLASSES,
     runtime::RuntimeError,
@@ -15,11 +16,67 @@ pub(in crate::vm::interpreter::instructions) fn process(
     classname: &str,
     frames: &mut StackFrames,
 ) -> Result<()> {
-    let code = Opcode::from(code);
-    match code {
+    match Opcode::from(code) {
+        GET_STATIC => get_static(classname, frames),
+        PUT_STATIC => put_static(classname, frames),
         INVOKE_STATIC => invoke_static(classname, frames),
-        _ => todo!("reference opcode not yet handled: {code}"),
+        opcode => todo!("reference opcode not yet handled: {opcode} (raw {code})"),
     }
+}
+
+fn get_static(classname: &str, frames: &mut StackFrames) -> Result<()> {
+    let index = read_index(frames)?;
+
+    let class = CLASSES.get(classname)?;
+    let (owner, name, _) = class
+        .constant_pool
+        .member_ref(index)
+        .map_err(|e| RuntimeError::Execution(e.to_string()))?;
+
+    Static::initialise(owner)?;
+
+    let field = CLASSES
+        .get(owner)?
+        .get_static(name)
+        .ok_or_else(|| RuntimeError::Execution(format!("static field {owner}.{name} not found")))?;
+    let value = field.value()?;
+
+    let frame = frames.last_mut().ok_or(StackError::EmptyStack)?;
+    for slot in value.into_iter().rev() {
+        frame.push(slot)?;
+    }
+
+    Ok(())
+}
+
+fn put_static(classname: &str, frames: &mut StackFrames) -> Result<()> {
+    let index = read_index(frames)?;
+
+    let class = CLASSES.get(classname)?;
+    let (owner, name, descriptor) = class
+        .constant_pool
+        .member_ref(index)
+        .map_err(|e| RuntimeError::Execution(e.to_string()))?;
+    let slots = descriptor
+        .parse::<TypeDescriptor>()
+        .map_err(|e| RuntimeError::Execution(e.to_string()))?
+        .size();
+
+    Static::initialise(owner)?;
+
+    let mut value = Vec::with_capacity(slots);
+    let frame = frames.last_mut().ok_or(StackError::EmptyStack)?;
+    for _ in 0..slots {
+        value.push(frame.pop::<ValueRef>().ok_or(StackError::StackUnderflow)?);
+    }
+
+    CLASSES
+        .get(owner)?
+        .get_static(name)
+        .ok_or_else(|| RuntimeError::Execution(format!("static field {owner}.{name} not found")))?
+        .set(value)?;
+
+    Ok(())
 }
 
 fn invoke_static(classname: &str, frames: &mut StackFrames) -> Result<()> {
