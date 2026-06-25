@@ -148,7 +148,7 @@ pub(in crate::classfile) enum StackMapEntry<'st> {
         locals: &'st [VerificationTypeInfo],
     },
     FullFrame {
-        offset_delta: u8,
+        offset_delta: u16,
         locals: &'st [VerificationTypeInfo],
         stack: &'st [VerificationTypeInfo],
     },
@@ -391,6 +391,10 @@ impl<'at> Attribute<'at> {
 
                             let stack_count = read::<u16>(reader)? as usize;
                             let mut stack = Vec::with_capacity_in(stack_count, arena);
+
+                            for _ in (0..stack_count) {
+                                stack.push(VerificationTypeInfo::try_from(&mut *reader)?);
+                            }
 
                             StackMapEntry::FullFrame {
                                 offset_delta,
