@@ -3,8 +3,9 @@ use crate::{
     image::image::Image,
     vm::{
         JAVA_HOME, Result, VmError,
-        interpreter::{StackFrame, executor::Executor, ldc::Ldc},
+        interpreter::ldc::Ldc,
         method_area::class::{CLASSES, Class, FieldValue},
+        properties,
         runtime::{
             RuntimeError,
             heap::{BaseInstance, HEAP},
@@ -142,14 +143,19 @@ impl MethodArea {
             true => self.open_and_parse(&class_path)?.ok_or_else(|| {
                 RuntimeError::Execution(format!("error opening class file: {class_path}")).into()
             }),
+            // application class, scan each classpath entry for '<entry>/<name>.class'
             _ => {
-                let external = classname.replace('/', ".");
+                for entry in properties::class_path_entries() {
+                    let path = Path::new(entry).join(&class_path);
+                    if let Some(class) = self.open_and_parse(path)? {
+                        return Ok(class);
+                    }
+                }
 
-                let for_name =
-                    "forName:(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;";
-                let class_ref = Executor::static_method(Class::CLASS, for_name, &[])?;
-
-                todo!("load application class `{external}` via Class.forName")
+                Err(
+                    RuntimeError::Execution(format!("class not found on classpath: {classname}"))
+                        .into(),
+                )
             }
         }
     }

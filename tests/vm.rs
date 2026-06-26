@@ -20,11 +20,13 @@ fn java_home() -> Option<PathBuf> {
         }
     }
 
+    // bootstraps against modern JDK internals (like jdk/internal/misc/UnsafeConstants,
+    // added in JDK 12+), so we prefer a recent JDK and avoid 11 :D
     let preferred = [
-        "/usr/lib/jvm/java-11-openjdk",
-        "/usr/lib/jvm/java-17-openjdk",
-        "/usr/lib/jvm/java-21-openjdk",
         "/usr/lib/jvm/java-24-jdk",
+        "/usr/lib/jvm/java-23-openjdk",
+        "/usr/lib/jvm/java-21-openjdk",
+        "/usr/lib/jvm/java-17-openjdk",
         "/usr/lib/jvm/default",
     ];
     for candidate in preferred {

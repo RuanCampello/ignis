@@ -9,6 +9,8 @@ use std::sync::LazyLock;
 mod classpath;
 mod os;
 
+pub(in crate::vm) use classpath::class_path_entries;
+
 /// User-overridable system properties, resolved once at startup
 ///
 /// Holds [DEFAULT_SYSTEM_PROPERTIES] extended with any matching entries from

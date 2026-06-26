@@ -11,6 +11,14 @@ use std::{
 
 static CLASSPATH: OnceCell<String> = OnceCell::new();
 
+pub(in crate::vm) fn class_path<'s>() -> &'s str {
+    CLASSPATH.get().map(String::as_str).unwrap_or(".")
+}
+
+pub(in crate::vm) fn class_path_entries<'s>() -> impl Iterator<Item = &'s str> {
+    class_path().split(os::path_separator())
+}
+
 impl<'a> Args<'a> {
     pub(crate) fn resolve_class_path(&self) -> Result<()> {
         let mut class_path = String::from(".");
