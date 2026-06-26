@@ -5,10 +5,19 @@
 //! [HEAP](crate::vm::runtime::heap).
 
 use crate::vm::{
-    Result, interpreter::executor::Executor, interpreter::stack::Value, runtime::heap::HEAP,
+    self, Result, interpreter::executor::Executor, interpreter::stack::Value,
+    runtime::RuntimeError, runtime::heap::HEAP,
 };
 
 const STRING: &str = "java/lang/String";
+
+/// Encoding marker a `java/lang/String` stores alongside its `byte[] value`
+enum Coder {
+    /// single-byte [ISO-8859-1](https://en.wikipedia.org/wiki/ISO/IEC_8859-1)
+    Latin1,
+    /// two-byte UTF-16
+    Utf16,
+}
 
 /// Heap reference of the interned `java/lang/String` for `value`, creating and
 /// caching it on first use
@@ -36,6 +45,26 @@ pub(in crate::vm) fn create_string_array(properties: &[&str]) -> Result<i32> {
     Ok(array_ref)
 }
 
+/// decodes the interned `java/lang/String` at `string` back into a rust string,
+/// reading its `byte[] value` and `coder` exactly as the jdk packed them
+pub(in crate::vm) fn get_by_ref(string: i32) -> Result<String> {
+    let value = HEAP.get_field_value(string, STRING, "value")?[0];
+    let coder = HEAP.get_field_value(string, STRING, "coder")?[0];
+    let bytes = HEAP.array_bytes(value)?;
+
+    match Coder::try_from(coder)? {
+        Coder::Latin1 => Ok(bytes.into_iter().map(|byte| byte as char).collect()),
+        Coder::Utf16 => {
+            let units = bytes
+                .chunks_exact(2)
+                .map(|pair| u16::from_ne_bytes([pair[0], pair[1]]))
+                .collect::<Vec<_>>();
+
+            String::from_utf16(&units).map_err(|e| RuntimeError::Execution(e.to_string()).into())
+        }
+    }
+}
+
 fn create(value: &str) -> Result<i32> {
     if value.is_empty() {
         return create_empty();
@@ -61,4 +90,16 @@ fn create_empty() -> Result<i32> {
     let args = [Value::from(array), Value::from(0)];
 
     Executor::constructor(STRING, "<init>:([BB)V", &args)
+}
+
+impl TryFrom<i32> for Coder {
+    type Error = vm::VmError;
+
+    fn try_from(value: i32) -> Result<Self> {
+        match value {
+            0 => Ok(Self::Latin1),
+            1 => Ok(Self::Utf16),
+            other => Err(RuntimeError::Execution(format!("unknown string coder: {other}")).into()),
+        }
+    }
 }

@@ -140,6 +140,18 @@ impl Heap {
         }
     }
 
+    /// raw backing bytes of the array at `array_ref`, exactly as stored
+    pub(in crate::vm::runtime) fn array_bytes(&self, array_ref: i32) -> Result<Vec<u8>> {
+        let entry = self.objects.get(&array_ref).ok_or_else(|| {
+            Error::Execution(format!("array reference was not found: {array_ref}"))
+        })?;
+
+        match entry.value() {
+            HeapValue::Array(array) => Ok(array.value.clone()),
+            _ => Err(Error::Execution(format!("reference {array_ref} is not an array")).into()),
+        }
+    }
+
     pub fn get_array_value(&self, array_ref: i32, index: i32) -> Result<Vec<i32>> {
         let entry = self
             .objects
