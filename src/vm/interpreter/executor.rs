@@ -1,11 +1,10 @@
-use std::sync::Arc;
-
 use crate::vm::{
     Result,
     interpreter::{self, StackFrame, ValueRef, stack::Value},
     method_area::class::{CLASSES, Class},
     runtime::{self, heap::HEAP, method_area::with_method_area},
 };
+use std::sync::Arc;
 
 // for as it now, executor is not going to hold any state
 // but this may change in the future, for now it's going to be a

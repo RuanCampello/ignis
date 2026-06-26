@@ -54,6 +54,8 @@ pub(in crate::vm) struct Class {
     /// alike — keyed by field name
     fields_info: IndexMap<String, Arc<FieldInfo>>,
     pub(in crate::vm) constant_pool: ConstantPool,
+
+    reflection: OnceCell<i32>,
 }
 
 #[derive(Debug, Default)]
@@ -344,9 +346,16 @@ impl Classes {
             Ok::<_, VmError>(())
         })?;
 
-        // TODO: inject mirror class
+        let _ = class.reflection.set(class_instance_id);
 
         Ok(())
+    }
+
+    pub(in crate::vm) fn reflection_ref(&self, name: &str) -> Result<i32> {
+        let class = &self.get(name)?;
+        class.reflection.get().copied().ok_or_else(|| {
+            RuntimeError::Execution(format!("no mirror class instance for {}", class.name)).into()
+        })
     }
 
     fn get_impl(&self, name: &str) -> Option<ClassWithId> {
@@ -380,6 +389,7 @@ impl Classes {
             fields_schema: IndexMap::new(),
             fields_info: IndexMap::new(),
             constant_pool: ConstantPool::default(),
+            reflection: OnceCell::new(),
             fields_hierarchy: OnceCell::new(),
             static_fields_initial_state: Arc::default(),
         })
@@ -398,6 +408,7 @@ impl Class {
             fields_schema: IndexMap::new(),
             fields_info: IndexMap::new(),
             constant_pool: ConstantPool::default(),
+            reflection: OnceCell::new(),
             fields_hierarchy: OnceCell::new(),
             modifiers: Modifier::empty(),
             external_name: String::default(),
@@ -418,6 +429,7 @@ impl Class {
             fields_schema: IndexMap::new(),
             fields_info: IndexMap::new(),
             constant_pool: ConstantPool::default(),
+            reflection: OnceCell::new(),
             external_name,
             parent: None,
         }
@@ -523,6 +535,7 @@ impl Class {
             fields_schema,
             fields_info,
             constant_pool: classfile.constant_pool,
+            reflection: OnceCell::new(),
             fields_hierarchy: OnceCell::new(),
             static_fields_initial_state: Arc::default(),
         })
