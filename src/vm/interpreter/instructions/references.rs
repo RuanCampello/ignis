@@ -21,10 +21,7 @@ pub(in crate::vm::interpreter::instructions) fn process(
             let index = read_index(frames)?;
 
             let class = CLASSES.get(classname)?;
-            let (owner, name, _) = class
-                .constant_pool
-                .member_ref(index)
-                .map_err(|e| RuntimeError::Execution(e.to_string()))?;
+            let (owner, name, _) = class.constant_pool.member_ref(index)?;
 
             Static::initialise(owner)?;
 
@@ -45,14 +42,8 @@ pub(in crate::vm::interpreter::instructions) fn process(
             let index = read_index(frames)?;
 
             let class = CLASSES.get(classname)?;
-            let (owner, name, descriptor) = class
-                .constant_pool
-                .member_ref(index)
-                .map_err(|e| RuntimeError::Execution(e.to_string()))?;
-            let slots = descriptor
-                .parse::<TypeDescriptor>()
-                .map_err(|e| RuntimeError::Execution(e.to_string()))?
-                .size();
+            let (owner, name, descriptor) = class.constant_pool.member_ref(index)?;
+            let slots = descriptor.parse::<TypeDescriptor>()?.size();
 
             Static::initialise(owner)?;
 
@@ -77,16 +68,10 @@ pub(in crate::vm::interpreter::instructions) fn process(
             let index = read_index(frames)?;
 
             let class = CLASSES.get(classname)?;
-            let (owner, name, descriptor) = class
-                .constant_pool
-                .member_ref(index)
-                .map_err(|e| RuntimeError::Execution(e.to_string()))?;
+            let (owner, name, descriptor) = class.constant_pool.member_ref(index)?;
 
             let signature = format!("{name}:{descriptor}");
-            let argument_size = descriptor
-                .parse::<MethodDescriptor>()
-                .map_err(|e| RuntimeError::Execution(e.to_string()))?
-                .arguments_size();
+            let argument_size = descriptor.parse::<MethodDescriptor>()?.arguments_size();
             let args = pop_args(frames, argument_size)?;
 
             let method = CLASSES.get(owner)?.get_method(&signature)?;

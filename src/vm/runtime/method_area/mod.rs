@@ -126,11 +126,7 @@ impl MethodArea {
         if let Some(module) = self.modules_map.get(&class_path) {
             let resource = format!("/{module}/{class_path}");
 
-            if let Some(resource) = self
-                .image
-                .find_resource(&resource)
-                .map_err(|image| RuntimeError::Execution(image.to_string()))?
-            {
+            if let Some(resource) = self.image.find_resource(&resource)? {
                 match self.parse(&resource) {
                     Ok(Some(class)) => return Ok(class),
                     Ok(None) => {}

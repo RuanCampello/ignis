@@ -14,7 +14,7 @@ mod constant_pool;
 mod fields;
 mod methods;
 
-pub(crate) use constant_pool::{ConstantPool, ConstantPoolEntry};
+pub(crate) use constant_pool::{ConstantPool, ConstantPoolEntry, ConstantPoolError};
 pub use fields::FieldFlags;
 pub use methods::MethodFlags;
 
@@ -25,7 +25,6 @@ use crate::classfile::{
 };
 use bitflags::bitflags;
 use bumpalo::{Bump, collections::Vec};
-use constant_pool::ConstantPoolError;
 use fields::Field;
 use std::io::{BufReader, Cursor, Read};
 use thiserror::Error;

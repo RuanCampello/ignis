@@ -9,6 +9,8 @@
 
 #![allow(unused)]
 
+use crate::classfile::{self, ConstantPoolError};
+use crate::image;
 use crate::vm::class::{CLASSES, Class};
 use crate::vm::interpreter::{executor::Executor, static_method::Static};
 use crate::vm::method_area::{class, with_method_area};
@@ -30,16 +32,31 @@ mod perfdata;
 mod properties;
 mod runtime;
 
+/// top-level error for everything under [crate::vm], the type behind [Result]
+///
+/// variants follow the phase that raises them: parsing/loading reads bytes into
+/// structures, linking resolves symbolic references, and execution runs bytecode.
+/// [Runtime](VmError::Runtime) and [Interpreter](VmError::Interpreter) are
+/// umbrellas over their phase, the remaining variants are cross-cutting leaves.
 #[derive(Error, Debug)]
 pub enum VmError {
+    /// runtime data areas: class loading, the method area and the heap
     #[error(transparent)]
     Runtime(#[from] runtime::RuntimeError),
+    /// bytecode execution: the operand stack and frame handling
     #[error(transparent)]
     Interpreter(#[from] interpreter::InterpreterError),
-    #[error(transparent)]
-    Image(#[from] crate::image::Error),
+    /// resolving a symbolic reference against a class' constant pool, raised both
+    /// while parsing a classfile and while an opcode resolves a member at runtime
+    #[error("An execution error related to the constant pool: {0}")]
+    ConstantPool(#[from] classfile::ConstantPoolError),
+    /// parsing a field or method type descriptor, at load or execution time
+    #[error("A type descriptor error occurred: {0}")]
+    Descriptor(#[from] descriptor::Error),
+    /// host I/O failure while reading class files or other vm resources
     #[error("I/O operation failed due to: {0}")]
     IO(#[from] std::io::Error),
+    /// catch-all for sites that don't yet have a dedicated variant
     #[error("{0}")]
     Other(String),
     /// a java exception that propagated all the way up without being caught
@@ -303,5 +320,11 @@ impl VmError {
             Self::UncaughtException(throwable) => Some(*throwable),
             _ => None,
         }
+    }
+}
+
+impl From<image::Error> for VmError {
+    fn from(error: image::Error) -> Self {
+        Self::Runtime(RuntimeError::Image(error))
     }
 }

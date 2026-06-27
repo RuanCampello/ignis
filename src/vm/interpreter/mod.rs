@@ -14,8 +14,14 @@ pub(in crate::vm::interpreter) mod native;
 pub(in crate::vm) mod stack;
 pub mod static_method;
 
+/// errors from the execution phase: running bytecode in a method frame
+///
+/// the counterpart to [`RuntimeError`](crate::vm::runtime::RuntimeError) under
+/// [`VmError`](crate::vm::VmError), scoped to what goes wrong *while interpreting*
+/// opcodes rather than while loading or linking classes
 #[derive(Error, Debug)]
 pub enum InterpreterError {
+    /// operand stack / frame fault (overflow, underflow, empty frame)
     #[error(transparent)]
     Stack(#[from] stack::StackError),
 }
